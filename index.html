@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seamless WebRTC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .videos {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        video {
+            width: 100%;
+            height: 240px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid transparent;
+        }
+
+        video.active {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .placeholder {
+            width: 100%;
+            height: 240px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 16px;
+            border: 2px dashed #333;
+        }
+
+        .status {
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .share-box {
+            background: linear-gradient(135deg, #2a2a2a, #1a3a2a);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+            border: 1px solid #333;
+        }
+
+        .share-link {
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            width: 100%;
+            color: #fff;
+            font-size: 13px;
+            margin: 15px 0;
+            word-break: break-all;
+            font-family: 'SF Mono', Monaco, monospace;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .copy-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+            margin: 10px;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
+        }
+
+        .copy-btn.success {
+            background: linear-gradient(135deg, #00cc66, #00aa44);
+        }
+
+        .timer {
+            font-size: 16px;
+            color: #ff6b6b;
+            font-weight: 500;
+            margin: 15px 0;
+            opacity: 0.8;
+        }
+
+        .role {
+            display: inline-block;
+            padding: 6px 12px;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .stage-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stage {
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .stage.active {
+            background: #00ff88;
+            transform: scale(1.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Initiator: Generate link -->
+        <div id="initiatorState" class="hidden">
+            <div class="role">Initiator</div>
+            <div class="stage-indicator">
+                <div class="stage active"></div>
+                <div class="stage"></div>
+                <div class="stage"></div>
+            </div>
+            <div class="status" id="initiatorStatus">Generating connection link...</div>
+            <div class="share-box">
+                <h3 style="margin-bottom: 15px;">Share this link:</h3>
+                <textarea class="share-link" id="initiatorLink" readonly></textarea>
+                <button class="copy-btn" id="copyInitiatorBtn">📋 Copy Link</button>
+                <div class="timer" id="initiatorTimer"></div>
+            </div>
+        </div>
+
+        <!-- Responder: Generate response -->
+        <div id="responderState" class="hidden">
+            <div class="role">Responder</div>
+            <div class="stage-indicator">
+                <div class="stage active"></div>
+                <div class="stage active"></div>
+                <div class="stage"></div>
+            </div>
+
+            <div class="videos">
+                <video id="responderVideo" autoplay muted playsinline class="active"></video>
+                <div class="placeholder">Waiting for connection...</div>
+            </div>
+
+            <div class="status" id="responderStatus">Send this link to complete connection:</div>
+            <div class="share-box">
+                <h3 style="margin-bottom: 15px;">Response link:</h3>
+                <textarea class="share-link" id="responderLink" readonly></textarea>
+                <button class="copy-btn" id="copyResponderBtn">📋 Copy Response</button>
+            </div>
+        </div>
+
+        <!-- Final connection -->
+        <div id="connectedState" class="hidden">
+            <div class="role">Connected</div>
+            <div class="stage-indicator">
+                <div class="stage active"></div>
+                <div class="stage active"></div>
+                <div class="stage active"></div>
+            </div>
+
+            <div class="videos">
+                <video id="localVideo" autoplay muted playsinline class="active"></video>
+                <video id="remoteVideo" autoplay playsinline class="active"></video>
+            </div>
+
+            <div class="status" id="connectedStatus">🎉 Video call connected!</div>
+        </div>
+
+        <!-- Initial state (fallback) -->
+        <div id="initialState">
+            <div class="status">Open a connection link to start</div>
+        </div>
+    </div>
+
+    <script>
+        class SeamlessWebRTC {
+            constructor() {
+                this.pc = null;
+                this.dataChannel = null;
+                this.localStream = null;
+                this.role = null;
+                this.timer = null;
+                this.connectionEstablished = false;
+            }
+
+            async init() {
+                // Auto-detect role and start flow
+                if (location.hash) {
+                    await this.handleIncomingData();
+                } else {
+                    await this.startAsInitiator();
+                }
+            }
+
+            async startAsInitiator() {
+                this.role = 'initiator';
+                this.showState('initiatorState');
+                this.updateStatus('initiatorStatus', 'Generating connection link...');
+
+                await this.createDataOnlyConnection();
+                await this.generateInitiatorLink();
+                this.startTimer();
+            }
+
+            async createDataOnlyConnection() {
+                this.pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                // Create data channel for media negotiation
+                this.dataChannel = this.pc.createDataChannel('media', {
+                    ordered: true
+                });
+
+                this.dataChannel.onopen = () => {
+                    console.log('Data channel opened');
+                    this.connectionEstablished = true;
+                };
+
+                this.dataChannel.onmessage = async (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'media-offer') {
+                        await this.handleMediaOffer(data);
+                    } else if (data.type === 'media-answer') {
+                        await this.handleMediaAnswer(data);
+                    }
+                };
+
+                this.pc.ondatachannel = (event) => {
+                    const channel = event.channel;
+                    channel.onmessage = async (event) => {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'media-offer') {
+                            await this.handleMediaOffer(data);
+                        } else if (data.type === 'media-answer') {
+                            await this.handleMediaAnswer(data);
+                        }
+                    };
+                };
+
+                this.pc.onconnectionstatechange = () => {
+                    if (this.pc.connectionState === 'connected' && !this.connectionEstablished) {
+                        this.connectionEstablished = true;
+                        this.startMediaNegotiation();
+                    }
+                };
+            }
+
+            async generateInitiatorLink() {
+                const offer = await this.pc.createOffer();
+                await this.pc.setLocalDescription(offer);
+                await this.waitForICE();
+
+                const linkData = {
+                    type: 'data-offer',
+                    sdp: this.pc.localDescription.sdp,
+                    timestamp: Date.now()
+                };
+
+                const encoded = btoa(JSON.stringify(linkData));
+                const shareUrl = `${window.location.origin}${window.location.pathname}#${encoded}`;
+
+                document.getElementById('initiatorLink').value = shareUrl;
+                this.updateStatus('initiatorStatus', '📤 Share the link above to start connection');
+            }
+
+            async handleIncomingData() {
+                try {
+                    const data = JSON.parse(atob(location.hash.slice(1)));
+
+                    if (data.type === 'data-offer') {
+                        await this.handleDataOffer(data);
+                    } else if (data.type === 'data-answer') {
+                        await this.handleDataAnswer(data);
+                    }
+                } catch (err) {
+                    console.error('Invalid link data:', err);
+                    this.updateStatus('initialState', 'Invalid link');
+                }
+            }
+
+            async handleDataOffer(offerData) {
+                this.role = 'responder';
+                this.showState('responderState');
+                this.updateStatus('responderStatus', 'Generating response...');
+
+                // Setup camera for responder
+                await this.setupCamera('responderVideo');
+
+                await this.createDataOnlyConnection();
+
+                await this.pc.setRemoteDescription({
+                    type: 'offer',
+                    sdp: offerData.sdp
+                });
+
+                const answer = await this.pc.createAnswer();
+                await this.pc.setLocalDescription(answer);
+                await this.waitForICE();
+
+                const responseData = {
+                    type: 'data-answer',
+                    sdp: this.pc.localDescription.sdp,
+                    timestamp: Date.now()
+                };
+
+                const encoded = btoa(JSON.stringify(responseData));
+                const responseUrl = `${window.location.origin}${window.location.pathname}#${encoded}`;
+
+                document.getElementById('responderLink').value = responseUrl;
+                this.updateStatus('responderStatus', '📤 Send response link to complete connection');
+            }
+
+            async handleDataAnswer(answerData) {
+                if (this.role !== 'initiator') return;
+
+                await this.pc.setRemoteDescription({
+                    type: 'answer',
+                    sdp: answerData.sdp
+                });
+
+                this.updateStatus('initiatorStatus', 'Data channel connecting...');
+                this.clearTimer();
+            }
+
+            async startMediaNegotiation() {
+                if (this.role === 'initiator') {
+                    // Setup camera and send media offer
+                    await this.setupCamera('localVideo');
+                    await this.sendMediaOffer();
+                } else {
+                    // Responder waits for media offer
+                    this.updateStatus('responderStatus', 'Waiting for video connection...');
+                }
+            }
+
+            async setupCamera(videoId) {
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 640, height: 480 },
+                        audio: true
+                    });
+
+                    if (videoId) {
+                        document.getElementById(videoId).srcObject = this.localStream;
+                    }
+                } catch (err) {
+                    console.error('Camera error:', err);
+                }
+            }
+
+            async sendMediaOffer() {
+                // Create new peer connection for media
+                this.mediaPc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                // Add local stream
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => {
+                        this.mediaPc.addTrack(track, this.localStream);
+                    });
+                }
+
+                this.mediaPc.ontrack = (event) => {
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                    this.showConnectedState();
+                };
+
+                const offer = await this.mediaPc.createOffer();
+                await this.mediaPc.setLocalDescription(offer);
+                await this.waitForICE(this.mediaPc);
+
+                const mediaOffer = {
+                    type: 'media-offer',
+                    sdp: this.mediaPc.localDescription.sdp
+                };
+
+                this.dataChannel.send(JSON.stringify(mediaOffer));
+            }
+
+            async handleMediaOffer(data) {
+                // Create media peer connection for responder
+                this.mediaPc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                // Add local stream
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => {
+                        this.mediaPc.addTrack(track, this.localStream);
+                    });
+                }
+
+                this.mediaPc.ontrack = (event) => {
+                    const remoteVideo = document.querySelector('.videos .placeholder');
+                    if (remoteVideo) {
+                        const video = document.createElement('video');
+                        video.autoplay = true;
+                        video.playsInline = true;
+                        video.className = 'active';
+                        video.srcObject = event.streams[0];
+                        remoteVideo.parentNode.replaceChild(video, remoteVideo);
+                    }
+                    this.showConnectedState();
+                };
+
+                await this.mediaPc.setRemoteDescription({
+                    type: 'offer',
+                    sdp: data.sdp
+                });
+
+                const answer = await this.mediaPc.createAnswer();
+                await this.mediaPc.setLocalDescription(answer);
+                await this.waitForICE(this.mediaPc);
+
+                const mediaAnswer = {
+                    type: 'media-answer',
+                    sdp: this.mediaPc.localDescription.sdp
+                };
+
+                this.pc.ondatachannel = (event) => {
+                    event.channel.send(JSON.stringify(mediaAnswer));
+                };
+
+                this.dataChannel?.send(JSON.stringify(mediaAnswer));
+            }
+
+            async handleMediaAnswer(data) {
+                await this.mediaPc.setRemoteDescription({
+                    type: 'answer',
+                    sdp: data.sdp
+                });
+            }
+
+            showConnectedState() {
+                this.showState('connectedState');
+
+                // Move videos to connected state
+                const localVideo = document.getElementById(this.role === 'initiator' ? 'localVideo' : 'responderVideo');
+                const connectedLocal = document.getElementById('localVideo');
+                const connectedRemote = document.getElementById('remoteVideo');
+
+                if (localVideo && localVideo.srcObject) {
+                    connectedLocal.srcObject = localVideo.srcObject;
+                }
+            }
+
+            waitForICE(pc = this.pc) {
+                return new Promise((resolve) => {
+                    if (pc.iceGatheringState === 'complete') {
+                        resolve();
+                        return;
+                    }
+
+                    const onStateChange = () => {
+                        if (pc.iceGatheringState === 'complete') {
+                            pc.removeEventListener('icegatheringstatechange', onStateChange);
+                            resolve();
+                        }
+                    };
+
+                    pc.addEventListener('icegatheringstatechange', onStateChange);
+                    setTimeout(resolve, 2000);
+                });
+            }
+
+            showState(stateId) {
+                document.querySelectorAll('.container > div').forEach(el => {
+                    el.classList.add('hidden');
+                });
+                document.getElementById(stateId).classList.remove('hidden');
+            }
+
+            updateStatus(elementId, message) {
+                document.getElementById(elementId).textContent = message;
+            }
+
+            startTimer() {
+                let remaining = 120; // 2 minutes
+                const timerEl = document.getElementById('initiatorTimer');
+
+                const tick = () => {
+                    const minutes = Math.floor(remaining / 60);
+                    const seconds = remaining % 60;
+                    timerEl.textContent = `Link expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    remaining--;
+
+                    if (remaining < 0) {
+                        this.clearTimer();
+                        timerEl.textContent = 'Link expired';
+                    }
+                };
+
+                tick();
+                this.timer = setInterval(tick, 1000);
+            }
+
+            clearTimer() {
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+            }
+        }
+
+        const rtc = new SeamlessWebRTC();
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            rtc.init();
+        });
+
+        // Copy button handlers
+        document.getElementById('copyInitiatorBtn').onclick = function() {
+            const link = document.getElementById('initiatorLink');
+            navigator.clipboard.writeText(link.value);
+            this.textContent = '✅ Copied!';
+            this.classList.add('success');
+            setTimeout(() => {
+                this.textContent = '📋 Copy Link';
+                this.classList.remove('success');
+            }, 2000);
+        };
+
+        document.getElementById('copyResponderBtn').onclick = function() {
+            const link = document.getElementById('responderLink');
+            navigator.clipboard.writeText(link.value);
+            this.textContent = '✅ Copied!';
+            this.classList.add('success');
+            setTimeout(() => {
+                this.textContent = '📋 Copy Response';
+                this.classList.remove('success');
+            }, 2000);
+        };
+    </script>
+</body>
+</html>
