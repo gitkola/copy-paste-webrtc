@@ -47,44 +47,53 @@
         position: absolute;
         top: 0;
         left: 0;
-        width: 100svw;
-        height: 100svh;
+        width: 100vw;
+        height: 100vh;
         background: #0a0a0a;
         display: flex;
         overflow: hidden;
       }
 
-      /* 50/50 Mode */
+      /* Default: Local video full screen (before connection) */
+      #local-video {
+        width: 100%;
+        height: 100%;
+        flex-shrink: 0;
+      }
+
+      #remote-video {
+        width: 100%;
+        height: 100%;
+        flex-shrink: 0;
+      }
+
+      /* 50/50 Split Mode - vertical (portrait) */
       #video-grid-view.mode-split-v {
         flex-direction: column;
       }
 
-      #video-grid-view.mode-split-v video:not(.hidden) {
+      #video-grid-view.mode-split-v #local-video,
+      #video-grid-view.mode-split-v #remote-video:not(.hidden) {
         width: 100%;
         height: 50%;
       }
 
+      /* 50/50 Split Mode - horizontal (landscape) */
       #video-grid-view.mode-split-h {
         flex-direction: row;
       }
 
-      #video-grid-view.mode-split-h video:not(.hidden) {
+      #video-grid-view.mode-split-h #local-video,
+      #video-grid-view.mode-split-h #remote-video:not(.hidden) {
         width: 50%;
         height: 100%;
       }
 
-      /* Local video full screen when remote is hidden */
-      #video-grid-view video:first-child:not(.hidden) {
-        width: 100%;
-        height: 100%;
-      }
-
-      #video-grid-view video:first-child:not(.hidden) ~ video:not(.hidden) {
-        width: 100%;
-        height: 50%;
-      }
-
       /* Full-screen Mode */
+      #video-grid-view.mode-full {
+        position: relative;
+      }
+
       #video-grid-view.mode-full video.full {
         width: 100%;
         height: 100%;
@@ -118,10 +127,11 @@
       }
 
       video.hidden {
-        height: 0;
-        width: 0;
+        height: 0 !important;
+        width: 0 !important;
         opacity: 0;
         pointer-events: none;
+        position: absolute;
       }
 
       /* Controls Overlay Layer - Top */
@@ -335,7 +345,8 @@
           flex-direction: row;
         }
 
-        #video-grid-view.mode-split-v video {
+        #video-grid-view.mode-split-v #local-video,
+        #video-grid-view.mode-split-v #remote-video:not(.hidden) {
           width: 50%;
           height: 100%;
         }
@@ -347,7 +358,11 @@
       }
 
       .hidden {
-        display: none;
+        display: none !important;
+      }
+
+      #paste-modal.hidden {
+        display: none !important;
       }
     </style>
   </head>
