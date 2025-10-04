@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>P2P WebRTC</title>
     <style>
@@ -13,9 +16,10 @@
         -webkit-tap-highlight-color: transparent;
       }
 
-      html, body {
-        width: 100%;
-        height: 100%;
+      html,
+      body {
+        width: 100svw;
+        height: 100svh;
         overflow: hidden;
         position: fixed;
         -webkit-user-select: none;
@@ -24,7 +28,8 @@
       }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: monospace, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
         background: #0a0a0a;
         color: #fff;
       }
@@ -34,8 +39,8 @@
         position: absolute;
         top: 0;
         left: 0;
-        width: 100vw;
-        height: 100vh;
+        width: 100svw;
+        height: 100svh;
         background: #0a0a0a;
         display: flex;
         overflow: hidden;
@@ -86,6 +91,7 @@
         object-fit: cover;
         cursor: pointer;
         transition: all 0.3s ease;
+        touch-action: manipulation;
       }
 
       video.hidden {
@@ -101,11 +107,10 @@
         height: 100vh;
         pointer-events: none;
         z-index: 10;
-        transition: opacity 0.3s ease;
       }
 
-      #controls-overlay.hidden {
-        opacity: 0;
+      #controls-overlay.always-visible {
+        /* Keep controls always visible when connected */
       }
 
       .control-btn {
@@ -139,6 +144,26 @@
         top: 20px;
         left: 50%;
         transform: translateX(-50%);
+        transition: all 0.3s ease;
+      }
+
+      #top-button.close-btn {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff4444, #cc0000);
+        color: #fff;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 700;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        top: 20px;
+        right: 20px;
+        left: auto;
+        transform: none;
       }
 
       #bottom-controls {
@@ -149,6 +174,14 @@
         display: flex;
         gap: 20px;
         pointer-events: auto;
+        transition: all 0.3s ease;
+      }
+
+      #bottom-controls.top-position {
+        bottom: auto;
+        top: 20px;
+        left: 20px;
+        transform: none;
       }
 
       .toggle-btn {
@@ -301,7 +334,9 @@
 
     <!-- Controls Overlay Layer -->
     <div id="controls-overlay">
-      <button id="top-button" class="control-btn primary">Share Offer Link</button>
+      <button id="top-button" class="control-btn primary">
+        Share Offer Link
+      </button>
 
       <div id="bottom-controls">
         <button id="mic-toggle" class="toggle-btn">🎤</button>
@@ -312,7 +347,10 @@
     <!-- Paste Modal -->
     <div id="paste-modal" class="hidden">
       <h3>Paste Answer Code</h3>
-      <textarea id="answer-input" placeholder="Paste the answer code here..."></textarea>
+      <textarea
+        id="answer-input"
+        placeholder="Paste the answer code here..."
+      ></textarea>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
         <button id="modal-connect">Connect</button>
@@ -363,30 +401,37 @@
 
         setupEventListeners() {
           // Video click handlers for mode switching
-          this.localVideo.addEventListener('click', () => this.handleVideoClick('local'));
-          this.remoteVideo.addEventListener('click', () => this.handleVideoClick('remote'));
+          this.localVideo.addEventListener('click', () =>
+            this.handleVideoClick('local')
+          );
+          this.remoteVideo.addEventListener('click', () =>
+            this.handleVideoClick('remote')
+          );
 
           // Top button
-          this.topButton.addEventListener('click', () => this.handleTopButtonClick());
+          this.topButton.addEventListener('click', () =>
+            this.handleTopButtonClick()
+          );
 
           // Mic and camera toggles
           this.micToggle.addEventListener('click', () => this.toggleMic());
-          this.cameraToggle.addEventListener('click', () => this.toggleCamera());
+          this.cameraToggle.addEventListener('click', () =>
+            this.toggleCamera()
+          );
 
           // Modal actions
-          document.getElementById('modal-cancel').addEventListener('click', () => {
-            this.pasteModal.classList.add('hidden');
-          });
-          document.getElementById('modal-connect').addEventListener('click', () => {
-            this.processAnswer();
-          });
+          document
+            .getElementById('modal-cancel')
+            .addEventListener('click', () => {
+              this.pasteModal.classList.add('hidden');
+            });
+          document
+            .getElementById('modal-connect')
+            .addEventListener('click', () => {
+              this.processAnswer();
+            });
 
-          // Screen tap to show/hide controls
-          this.videoGrid.addEventListener('click', (e) => {
-            if (e.target === this.videoGrid) {
-              this.toggleControls();
-            }
-          });
+          // Disabled screen tap to toggle controls - controls are always visible
 
           // Auto-paste detection
           this.answerInput.addEventListener('paste', () => {
@@ -481,15 +526,63 @@
 
         async copyOfferLink() {
           const url = this.topButton.dataset.offerUrl;
-          if (url) {
+          if (!url) return;
+
+          // Try native Share API first
+          if (navigator.share) {
             try {
-              await navigator.clipboard.writeText(url);
-              this.showToast('✅ Link copied to clipboard');
+              await navigator.share({
+                url: url,
+              });
+              this.showToast('✅ Link shared');
               this.setButtonState('paste');
+              return;
             } catch (err) {
-              console.error('Copy failed:', err);
-              this.showToast('❌ Failed to copy link');
+              // User cancelled or share failed, fall through to clipboard
+              if (err.name !== 'AbortError') {
+                console.error('Share failed:', err);
+              }
             }
+          }
+
+          // Fallback to clipboard
+          try {
+            await navigator.clipboard.writeText(url);
+            this.showToast('✅ Link copied to clipboard');
+            this.setButtonState('paste');
+          } catch (err) {
+            console.error('Copy failed:', err);
+            this.showToast('❌ Failed to copy link');
+          }
+        }
+
+        async shareAnswerCode(code) {
+          if (!code) return;
+
+          // Try native Share API first
+          if (navigator.share) {
+            try {
+              await navigator.share({
+                title: 'P2P WebRTC Answer Code',
+                text: `Here's my answer code:\n\n${code}`,
+              });
+              this.showToast('✅ Answer code shared');
+              return;
+            } catch (err) {
+              // User cancelled or share failed, fall through to clipboard
+              if (err.name !== 'AbortError') {
+                console.error('Share failed:', err);
+              }
+            }
+          }
+
+          // Fallback to clipboard
+          try {
+            await navigator.clipboard.writeText(code);
+            this.showToast('✅ Answer code copied to clipboard');
+          } catch (err) {
+            console.error('Copy failed:', err);
+            this.showToast('❌ Failed to copy');
           }
         }
 
@@ -498,12 +591,22 @@
           if (state === 'share') {
             this.topButton.textContent = 'Share Offer Link';
             this.topButton.classList.add('primary');
+            this.topButton.classList.remove('close-btn');
           } else if (state === 'paste') {
             this.topButton.textContent = 'Paste Answer Code';
             this.topButton.classList.add('primary');
+            this.topButton.classList.remove('close-btn');
           } else if (state === 'close') {
-            this.topButton.textContent = 'Close';
+            this.topButton.textContent = '×';
             this.topButton.classList.remove('primary');
+            this.topButton.classList.add('close-btn');
+
+            // Move mic/camera controls to top
+            const bottomControls = document.getElementById('bottom-controls');
+            bottomControls.classList.add('top-position');
+
+            // Make controls always visible
+            this.controlsOverlay.classList.add('always-visible');
           }
         }
 
@@ -530,26 +633,7 @@
           this.cameraToggle.classList.toggle('off', !this.cameraEnabled);
         }
 
-        // Controls visibility
-        toggleControls() {
-          this.controlsVisible = !this.controlsVisible;
-          this.controlsOverlay.classList.toggle('hidden', !this.controlsVisible);
-          if (this.controlsVisible) {
-            this.resetControlsTimer();
-          }
-        }
-
-        resetControlsTimer() {
-          if (this.controlsTimer) {
-            clearTimeout(this.controlsTimer);
-          }
-          if (this.connectionEstablished) {
-            this.controlsTimer = setTimeout(() => {
-              this.controlsVisible = false;
-              this.controlsOverlay.classList.add('hidden');
-            }, 3000);
-          }
-        }
+        // Controls are always visible - no hiding functionality
 
         showToast(message) {
           this.toast.textContent = message;
@@ -658,19 +742,14 @@
 
             const encoded = btoa(JSON.stringify(answerData));
 
-            // Store answer code for copy button
+            // Store answer code for share button
             this.topButton.dataset.answerCode = encoded;
-            this.topButton.textContent = 'Copy Answer Code';
+            this.topButton.textContent = 'Share Answer Code';
             this.topButton.onclick = async () => {
-              try {
-                await navigator.clipboard.writeText(encoded);
-                this.showToast('✅ Answer code copied!');
-              } catch (err) {
-                this.showToast('❌ Failed to copy');
-              }
+              await this.shareAnswerCode(encoded);
             };
 
-            this.showToast('Answer code ready to copy');
+            this.showToast('Answer code ready to share');
           } catch (err) {
             console.error('Handle offer error:', err);
             this.showToast('❌ Error processing offer');
@@ -711,7 +790,6 @@
             await this.sendMediaOffer();
           }
         }
-
 
         async sendMediaOffer() {
           this.mediaPc = new RTCPeerConnection({
@@ -789,7 +867,8 @@
           this.setButtonState('close');
           this.showToast('🎉 Connected!');
           this.updateVideoLayout();
-          this.resetControlsTimer();
+
+          // Controls stay visible - no auto-hide
         }
 
         waitForICE(pc = this.pc) {
@@ -813,7 +892,6 @@
             setTimeout(resolve, 3000);
           });
         }
-
       }
 
       const rtc = new P2PWebRTC();
