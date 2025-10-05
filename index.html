@@ -387,10 +387,10 @@
 
     <!-- Paste Modal -->
     <div id="paste-modal" class="hidden">
-      <h3>Paste Answer Code</h3>
+      <h3>Paste Answer Link</h3>
       <textarea
         id="answer-input"
-        placeholder="Paste the answer code here..."
+        placeholder="Paste the answer link here (https://dpaste.com/...)..."
       ></textarea>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
@@ -597,17 +597,16 @@
           }
         }
 
-        async shareAnswerCode(code) {
-          if (!code) return;
+        async shareAnswerCode(url) {
+          if (!url) return;
 
           // Try native Share API first
           if (navigator.share) {
             try {
               await navigator.share({
-                title: 'P2P WebRTC Answer Code',
-                text: `${code}`,
+                url: url,
               });
-              this.showToast('✅ Answer code shared');
+              this.showToast('✅ Answer link shared');
               return;
             } catch (err) {
               // User cancelled or share failed, fall through to clipboard
@@ -619,8 +618,8 @@
 
           // Fallback to clipboard
           try {
-            await navigator.clipboard.writeText(code);
-            this.showToast('✅ Answer code copied to clipboard');
+            await navigator.clipboard.writeText(url);
+            this.showToast('✅ Answer link copied to clipboard');
           } catch (err) {
             console.error('Copy failed:', err);
             this.showToast('❌ Failed to copy');
@@ -634,7 +633,7 @@
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
           } else if (state === 'paste') {
-            this.topButton.textContent = 'Paste Answer Code';
+            this.topButton.textContent = 'Paste Answer Link';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
           } else if (state === 'close') {
@@ -743,21 +742,47 @@
           await this.pc.setLocalDescription(offer);
           await this.waitForICE();
 
-          const offerData = {
-            type: 'offer',
-            sdp: this.pc.localDescription.sdp,
-          };
+          this.showToast('📤 Uploading offer...');
 
-          const encoded = btoa(JSON.stringify(offerData));
-          const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+          try {
+            const offerData = {
+              type: 'offer',
+              sdp: this.pc.localDescription.sdp,
+            };
 
-          this.topButton.dataset.offerUrl = url;
-          this.showToast('Offer ready to share');
+            // Compress SDP
+            const compressed = await this.compressString(
+              JSON.stringify(offerData)
+            );
+
+            // Upload to storage
+            const storageUrl = await this.uploadToStorage(compressed);
+
+            // Encode storage URL and create share URL
+            const encoded = btoa(storageUrl);
+            const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+
+            this.topButton.dataset.offerUrl = url;
+            this.showToast('✅ Offer ready to share');
+          } catch (err) {
+            console.error('Generate offer error:', err);
+            this.showToast('❌ Failed to upload offer');
+          }
         }
 
         async handleOffer() {
           try {
-            const data = JSON.parse(atob(location.hash.slice(1)));
+            this.showToast('📥 Fetching offer...');
+
+            // Decode hash to get storage URL
+            const storageUrl = atob(location.hash.slice(1));
+
+            // Fetch compressed data from storage
+            const compressed = await this.fetchFromStorage(storageUrl);
+
+            // Decompress to get offer data
+            const offerJson = await this.decompressString(compressed);
+            const data = JSON.parse(offerJson);
 
             if (data.type !== 'offer') return;
 
@@ -776,21 +801,31 @@
             await this.pc.setLocalDescription(answer);
             await this.waitForICE();
 
+            this.showToast('📤 Uploading answer...');
+
             const answerData = {
               type: 'answer',
               sdp: this.pc.localDescription.sdp,
             };
 
-            const encoded = btoa(JSON.stringify(answerData));
+            // Compress answer
+            const answerCompressed = await this.compressString(
+              JSON.stringify(answerData)
+            );
 
-            // Store answer code for share button
-            this.topButton.dataset.answerCode = encoded;
-            this.topButton.textContent = 'Share Answer Code';
+            // Upload to storage
+            const answerStorageUrl = await this.uploadToStorage(
+              answerCompressed
+            );
+
+            // Store answer URL for share button
+            this.topButton.dataset.answerUrl = answerStorageUrl;
+            this.topButton.textContent = 'Share Answer Link';
             this.topButton.onclick = async () => {
-              await this.shareAnswerCode(encoded);
+              await this.shareAnswerCode(answerStorageUrl);
             };
 
-            this.showToast('Answer code ready to share');
+            this.showToast('✅ Answer ready to share');
           } catch (err) {
             console.error('Handle offer error:', err);
             this.showToast('❌ Error processing offer');
@@ -802,14 +837,21 @@
           if (!input) return;
 
           try {
-            const data = JSON.parse(atob(input));
+            this.pasteModal.classList.add('hidden');
+            this.showToast('📥 Fetching answer...');
+
+            // Fetch compressed data from storage
+            const compressed = await this.fetchFromStorage(input);
+
+            // Decompress to get answer data
+            const answerJson = await this.decompressString(compressed);
+            const data = JSON.parse(answerJson);
 
             if (data.type !== 'answer') {
-              this.showToast('❌ Invalid answer code');
+              this.showToast('❌ Invalid answer');
               return;
             }
 
-            this.pasteModal.classList.add('hidden');
             this.showToast('⏳ Connecting...');
 
             await this.pc.setRemoteDescription({
@@ -820,7 +862,7 @@
             this.answerInput.value = '';
           } catch (err) {
             console.error('Process answer error:', err);
-            this.showToast('❌ Invalid answer code');
+            this.showToast('❌ Invalid answer link');
           }
         }
 
@@ -932,6 +974,87 @@
             pc.addEventListener('icegatheringstatechange', onStateChange);
             setTimeout(resolve, 3000);
           });
+        }
+
+        // Compression/Decompression helpers
+        async compressString(str) {
+          const stream = new Blob([str]).stream();
+          const compressedStream = stream.pipeThrough(
+            new CompressionStream('gzip')
+          );
+          const blob = await new Response(compressedStream).blob();
+          const buffer = await blob.arrayBuffer();
+          const base64 = btoa(
+            String.fromCharCode(...new Uint8Array(buffer))
+          );
+          return base64;
+        }
+
+        async decompressString(base64) {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const blob = new Blob([bytes]);
+          const decompressedStream = blob
+            .stream()
+            .pipeThrough(new DecompressionStream('gzip'));
+          const decompressedBlob = await new Response(
+            decompressedStream
+          ).blob();
+          return await decompressedBlob.text();
+        }
+
+        // Ephemeral storage API helpers (using dpaste.com)
+        async uploadToStorage(text) {
+          try {
+            const formData = new FormData();
+            formData.append('content', text);
+            formData.append('syntax', 'text');
+            formData.append('expiry_days', '1');
+
+            const response = await fetch('https://dpaste.com/api/v2/', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error('Upload failed');
+            }
+
+            // dpaste returns the URL directly
+            let url = await response.text();
+            url = url.trim();
+
+            // Ensure we use the raw endpoint for fetching
+            if (!url.endsWith('.txt')) {
+              url = url + '.txt';
+            }
+
+            return url;
+          } catch (err) {
+            console.error('Storage upload error:', err);
+            throw err;
+          }
+        }
+
+        async fetchFromStorage(url) {
+          try {
+            // Ensure we're using the .txt endpoint
+            if (!url.endsWith('.txt')) {
+              url = url + '.txt';
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error('Fetch failed');
+            }
+            return await response.text();
+          } catch (err) {
+            console.error('Storage fetch error:', err);
+            throw err;
+          }
         }
       }
 
