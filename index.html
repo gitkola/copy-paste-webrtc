@@ -568,14 +568,33 @@
         }
 
         // Button state machine
-        handleTopButtonClick() {
+        async handleTopButtonClick() {
           if (this.buttonState === 'share') {
             this.copyOfferLink();
           } else if (this.buttonState === 'paste') {
-            this.pasteModal.classList.remove('hidden');
-            this.answerInput.focus();
+            await this.pasteAndConnect();
           } else if (this.buttonState === 'close') {
             this.closeConnection();
+          }
+        }
+
+        async pasteAndConnect() {
+          try {
+            // Try to read from clipboard directly
+            const clipboardText = await navigator.clipboard.readText();
+            if (clipboardText && clipboardText.trim()) {
+              this.answerInput.value = clipboardText.trim();
+              await this.processAnswer();
+            } else {
+              // If clipboard is empty, show modal as fallback
+              this.pasteModal.classList.remove('hidden');
+              this.answerInput.focus();
+            }
+          } catch (err) {
+            // If clipboard access denied or not available, show modal as fallback
+            console.log('Clipboard access not available, showing modal:', err);
+            this.pasteModal.classList.remove('hidden');
+            this.answerInput.focus();
           }
         }
 
