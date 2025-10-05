@@ -7,6 +7,10 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <title>P2P WebRTC</title>
     <style>
       * {
@@ -110,20 +114,29 @@
         bottom: 80px;
         right: 20px;
         z-index: 2;
-        border: 2px solid #00ff88;
         border-radius: 12px;
+      }
+
+      #video-grid-view.mode-full #local-video.thumbnail {
+        border-color: #0088ff;
       }
 
       video {
         background: #1a1a1a;
         object-fit: cover;
         cursor: pointer;
-        transition: all 0.3s ease;
+        /* transition: all 0.3s ease; */
         touch-action: none;
       }
 
       #local-video {
         transform: scaleX(-1);
+        border: 3px solid #0088ff;
+      }
+
+      /* Disable pointer events on local video before connection */
+      #local-video.no-click {
+        pointer-events: none;
       }
 
       video.hidden {
@@ -143,10 +156,6 @@
         height: 100vh;
         pointer-events: none;
         z-index: 10;
-      }
-
-      #controls-overlay.always-visible {
-        /* Keep controls always visible when connected */
       }
 
       .control-btn {
@@ -173,6 +182,55 @@
         background: linear-gradient(135deg, #00ff88, #00cc66);
         color: #000;
         border-color: transparent;
+      }
+
+      .control-btn:disabled,
+      .control-btn.loading {
+        opacity: 0.6;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      .control-btn.loading::after {
+        content: '';
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin-left: 8px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      #reload-btn {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        font-size: 24px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        pointer-events: auto;
+        touch-action: manipulation;
+      }
+
+      #reload-btn:active {
+        transform: scale(0.9);
+        background: rgba(0, 0, 0, 0.9);
       }
 
       #top-button {
@@ -216,7 +274,7 @@
       #bottom-controls.top-position {
         bottom: auto;
         top: 20px;
-        left: 20px;
+        left: 90px;
         transform: none;
       }
 
@@ -368,13 +426,21 @@
   </head>
   <body>
     <!-- Video Grid View Layer -->
-    <div id="video-grid-view" class="mode-split-v">
-      <video id="local-video" autoplay muted playsinline></video>
-      <video id="remote-video" autoplay playsinline></video>
+    <div id="video-grid-view">
+      <video
+        id="local-video"
+        autoplay
+        muted
+        playsinline
+        class="no-click"
+      ></video>
+      <video id="remote-video" autoplay playsinline class="hidden"></video>
     </div>
 
     <!-- Controls Overlay Layer -->
     <div id="controls-overlay">
+      <button id="reload-btn" class="toggle-btn">🔄</button>
+
       <button id="top-button" class="control-btn primary">
         Share Offer Link
       </button>
@@ -418,12 +484,14 @@
           this.cameraEnabled = true;
           this.controlsVisible = true;
           this.controlsTimer = null;
+          this.isLoading = false;
 
           // DOM elements
           this.localVideo = document.getElementById('local-video');
           this.remoteVideo = document.getElementById('remote-video');
           this.videoGrid = document.getElementById('video-grid-view');
           this.controlsOverlay = document.getElementById('controls-overlay');
+          this.reloadBtn = document.getElementById('reload-btn');
           this.topButton = document.getElementById('top-button');
           this.micToggle = document.getElementById('mic-toggle');
           this.cameraToggle = document.getElementById('camera-toggle');
@@ -448,6 +516,9 @@
           this.remoteVideo.addEventListener('click', () =>
             this.handleVideoClick('remote')
           );
+
+          // Reload button
+          this.reloadBtn.addEventListener('click', () => this.reloadPage());
 
           // Top button
           this.topButton.addEventListener('click', () =>
@@ -505,7 +576,6 @@
 
         async startAsInitiator() {
           this.role = 'initiator';
-          this.remoteVideo.classList.add('hidden');
           await this.createDataConnection();
           await this.generateOffer();
         }
@@ -554,14 +624,33 @@
         }
 
         // Button state machine
-        handleTopButtonClick() {
+        async handleTopButtonClick() {
           if (this.buttonState === 'share') {
             this.copyOfferLink();
           } else if (this.buttonState === 'paste') {
-            this.pasteModal.classList.remove('hidden');
-            this.answerInput.focus();
+            await this.pasteAndConnect();
           } else if (this.buttonState === 'close') {
             this.closeConnection();
+          }
+        }
+
+        async pasteAndConnect() {
+          try {
+            // Try to read from clipboard directly
+            const clipboardText = await navigator.clipboard.readText();
+            if (clipboardText && clipboardText.trim()) {
+              this.answerInput.value = clipboardText.trim();
+              await this.processAnswer();
+            } else {
+              // If clipboard is empty, show modal as fallback
+              this.pasteModal.classList.remove('hidden');
+              this.answerInput.focus();
+            }
+          } catch (err) {
+            // If clipboard access denied or not available, show modal as fallback
+            console.log('Clipboard access not available, showing modal:', err);
+            this.pasteModal.classList.remove('hidden');
+            this.answerInput.focus();
           }
         }
 
@@ -645,9 +734,6 @@
             // Move mic/camera controls to top
             const bottomControls = document.getElementById('bottom-controls');
             bottomControls.classList.add('top-position');
-
-            // Make controls always visible
-            this.controlsOverlay.classList.add('always-visible');
           }
         }
 
@@ -684,8 +770,35 @@
           }, 2000);
         }
 
-        closeConnection() {
+        setLoading(loading, statusText = '') {
+          this.isLoading = loading;
+          if (loading) {
+            this.topButton.classList.add('loading');
+            this.topButton.disabled = true;
+            if (statusText) {
+              this.topButton.dataset.originalText = this.topButton.textContent;
+              this.topButton.textContent = statusText;
+            }
+          } else {
+            this.topButton.classList.remove('loading');
+            this.topButton.disabled = false;
+            if (this.topButton.dataset.originalText) {
+              this.topButton.textContent = this.topButton.dataset.originalText;
+              delete this.topButton.dataset.originalText;
+            }
+          }
+        }
+
+        reloadPage() {
+          // Clear hash if it's an offer link, then reload
+          if (location.hash) {
+            history.replaceState(null, '', location.pathname);
+          }
           location.reload();
+        }
+
+        closeConnection() {
+          this.reloadPage();
         }
 
         async createDataConnection() {
@@ -739,6 +852,8 @@
         }
 
         async generateOffer() {
+          this.setLoading(true, 'Generating offer');
+
           const offer = await this.pc.createOffer();
           await this.pc.setLocalDescription(offer);
           await this.waitForICE();
@@ -752,18 +867,19 @@
           const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
 
           this.topButton.dataset.offerUrl = url;
+          this.setLoading(false);
           this.showToast('Offer ready to share');
         }
 
         async handleOffer() {
           try {
+            this.setLoading(true, 'Processing offer');
+
             const data = JSON.parse(atob(location.hash.slice(1)));
 
             if (data.type !== 'offer') return;
 
             this.role = 'responder';
-            this.remoteVideo.classList.add('hidden');
-            this.setButtonState('share');
 
             await this.createDataConnection();
 
@@ -783,9 +899,14 @@
 
             const encoded = btoa(JSON.stringify(answerData));
 
+            // Clear loading first, then set button text
+            this.setLoading(false);
+
             // Store answer code for share button
             this.topButton.dataset.answerCode = encoded;
             this.topButton.textContent = 'Share Answer Code';
+            this.topButton.classList.add('primary');
+            this.topButton.classList.remove('close-btn');
             this.topButton.onclick = async () => {
               await this.shareAnswerCode(encoded);
             };
@@ -793,6 +914,7 @@
             this.showToast('Answer code ready to share');
           } catch (err) {
             console.error('Handle offer error:', err);
+            this.setLoading(false);
             this.showToast('❌ Error processing offer');
           }
         }
@@ -810,6 +932,7 @@
             }
 
             this.pasteModal.classList.add('hidden');
+            this.setLoading(true, 'Connecting');
             this.showToast('⏳ Connecting...');
 
             await this.pc.setRemoteDescription({
@@ -818,8 +941,10 @@
             });
 
             this.answerInput.value = '';
+            // Loading state will be cleared when connection is established
           } catch (err) {
             console.error('Process answer error:', err);
+            this.setLoading(false);
             this.showToast('❌ Invalid answer code');
           }
         }
@@ -904,6 +1029,15 @@
           this.remoteVideo.srcObject = remoteStream;
           this.remoteVideo.classList.remove('hidden');
           this.connectionEstablished = true;
+
+          // Enable split view mode when connected
+          this.videoGrid.classList.add('mode-split-v');
+
+          // Enable click on local video after connection
+          this.localVideo.classList.remove('no-click');
+
+          // Clear loading state
+          this.setLoading(false);
 
           this.setButtonState('close');
           this.showToast('🎉 Connected!');
