@@ -499,7 +499,9 @@
         micOff: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/></svg>`,
         cameraOn: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>`,
         cameraOff: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><path d="m2 2 20 20"/></svg>`,
-        reload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>`
+        reload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>`,
+        share: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-share-icon lucide-share"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg>`,
+        paste: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-icon lucide-download"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>`,
       };
 
       class P2PWebRTC {
@@ -787,7 +789,9 @@
               track.enabled = this.micEnabled;
             });
           }
-          this.micToggle.innerHTML = this.micEnabled ? ICONS.micOn : ICONS.micOff;
+          this.micToggle.innerHTML = this.micEnabled
+            ? ICONS.micOn
+            : ICONS.micOff;
           this.micToggle.classList.toggle('off', !this.micEnabled);
         }
 
@@ -798,7 +802,9 @@
               track.enabled = this.cameraEnabled;
             });
           }
-          this.cameraToggle.innerHTML = this.cameraEnabled ? ICONS.cameraOn : ICONS.cameraOff;
+          this.cameraToggle.innerHTML = this.cameraEnabled
+            ? ICONS.cameraOn
+            : ICONS.cameraOff;
           this.cameraToggle.classList.toggle('off', !this.cameraEnabled);
         }
 
@@ -908,9 +914,126 @@
           const encoded = btoa(JSON.stringify(offerData));
           const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
 
+          // 📊 COMPARISON: Measure offer size WITH media tracks
+          // await this.compareOfferSizes(offerData);
+
           this.topButton.dataset.offerUrl = url;
           this.setLoading(false);
           this.showToast('Offer ready to share');
+        }
+
+        async compareOfferSizes(offerWithoutMedia) {
+          console.log('\n📊 ===== OFFER SIZE COMPARISON =====');
+
+          // Current offer (without media)
+          const withoutMediaJSON = JSON.stringify(offerWithoutMedia);
+          const withoutMediaEncoded = btoa(withoutMediaJSON);
+          const withoutMediaSDP = offerWithoutMedia.sdp;
+
+          console.log('❌ Current Offer (WITHOUT media tracks):');
+          console.log('   SDP lines:', withoutMediaSDP.split('\n').length);
+          console.log('   SDP bytes:', new Blob([withoutMediaSDP]).size);
+          console.log('   JSON bytes:', new Blob([withoutMediaJSON]).size);
+          console.log('   Base64 bytes:', new Blob([withoutMediaEncoded]).size);
+          console.log('   URL length:', withoutMediaEncoded.length);
+
+          // Create test connection WITH media
+          const testPc = new RTCPeerConnection({
+            iceServers: this.iceServers,
+            iceCandidatePoolSize: 10,
+          });
+
+          if (this.localStream) {
+            this.localStream.getTracks().forEach((track) => {
+              testPc.addTrack(track, this.localStream);
+            });
+          }
+
+          const testOffer = await testPc.createOffer();
+          await testPc.setLocalDescription(testOffer);
+
+          // Wait for ICE (brief wait)
+          await new Promise((resolve) => {
+            if (testPc.iceGatheringState === 'complete') {
+              resolve();
+            } else {
+              const onStateChange = () => {
+                if (testPc.iceGatheringState === 'complete') {
+                  testPc.removeEventListener(
+                    'icegatheringstatechange',
+                    onStateChange
+                  );
+                  resolve();
+                }
+              };
+              testPc.addEventListener('icegatheringstatechange', onStateChange);
+              setTimeout(resolve, 2000);
+            }
+          });
+
+          const withMediaData = {
+            type: 'offer',
+            sdp: testPc.localDescription.sdp,
+          };
+          const withMediaJSON = JSON.stringify(withMediaData);
+          const withMediaEncoded = btoa(withMediaJSON);
+          const withMediaSDP = withMediaData.sdp;
+
+          console.log('\n✅ Test Offer (WITH media tracks):');
+          console.log('   SDP lines:', withMediaSDP.split('\n').length);
+          console.log('   SDP bytes:', new Blob([withMediaSDP]).size);
+          console.log('   JSON bytes:', new Blob([withMediaJSON]).size);
+          console.log('   Base64 bytes:', new Blob([withMediaEncoded]).size);
+          console.log('   URL length:', withMediaEncoded.length);
+
+          console.log('\n📈 Difference:');
+          const sdpDiff =
+            new Blob([withMediaSDP]).size - new Blob([withoutMediaSDP]).size;
+          const jsonDiff =
+            new Blob([withMediaJSON]).size - new Blob([withoutMediaJSON]).size;
+          const encodedDiff =
+            new Blob([withMediaEncoded]).size -
+            new Blob([withoutMediaEncoded]).size;
+          const linesDiff =
+            withMediaSDP.split('\n').length -
+            withoutMediaSDP.split('\n').length;
+
+          console.log('   +' + linesDiff + ' SDP lines');
+          console.log(
+            '   +' +
+              sdpDiff +
+              ' bytes SDP (' +
+              ((sdpDiff / new Blob([withoutMediaSDP]).size) * 100).toFixed(1) +
+              '% increase)'
+          );
+          console.log(
+            '   +' +
+              jsonDiff +
+              ' bytes JSON (' +
+              ((jsonDiff / new Blob([withoutMediaJSON]).size) * 100).toFixed(
+                1
+              ) +
+              '% increase)'
+          );
+          console.log(
+            '   +' +
+              encodedDiff +
+              ' bytes Base64 (' +
+              (
+                (encodedDiff / new Blob([withoutMediaEncoded]).size) *
+                100
+              ).toFixed(1) +
+              '% increase)'
+          );
+
+          console.log(
+            '\n💡 Including media would add ~' +
+              (encodedDiff / 1024).toFixed(2) +
+              ' KB to the copy-paste code'
+          );
+          console.log('===================================\n');
+
+          testPc.close();
         }
 
         async handleOffer() {
