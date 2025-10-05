@@ -368,9 +368,9 @@
   </head>
   <body>
     <!-- Video Grid View Layer -->
-    <div id="video-grid-view" class="mode-split-v">
+    <div id="video-grid-view">
       <video id="local-video" autoplay muted playsinline></video>
-      <video id="remote-video" autoplay playsinline></video>
+      <video id="remote-video" autoplay playsinline class="hidden"></video>
     </div>
 
     <!-- Controls Overlay Layer -->
@@ -505,7 +505,6 @@
 
         async startAsInitiator() {
           this.role = 'initiator';
-          this.remoteVideo.classList.add('hidden');
           await this.createDataConnection();
           await this.generateOffer();
         }
@@ -759,7 +758,6 @@
             if (data.type !== 'offer') return;
 
             this.role = 'responder';
-            this.remoteVideo.classList.add('hidden');
             this.setButtonState('share');
 
             await this.createDataConnection();
@@ -901,6 +899,9 @@
           this.remoteVideo.srcObject = remoteStream;
           this.remoteVideo.classList.remove('hidden');
           this.connectionEstablished = true;
+
+          // Enable split view mode when connected
+          this.videoGrid.classList.add('mode-split-v');
 
           this.setButtonState('close');
           this.showToast('🎉 Connected!');
