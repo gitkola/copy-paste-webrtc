@@ -198,6 +198,13 @@
         pointer-events: none;
       }
 
+      .control-btn svg {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        flex-shrink: 0;
+      }
+
       .control-btn.loading::after {
         content: '';
         display: inline-block;
@@ -466,9 +473,7 @@
     <div id="controls-overlay">
       <button id="reload-btn" class="toggle-btn"></button>
 
-      <button id="top-button" class="control-btn primary">
-        Share Offer Link
-      </button>
+      <button id="top-button" class="control-btn primary"></button>
 
       <div id="bottom-controls">
         <button id="mic-toggle" class="toggle-btn"></button>
@@ -550,6 +555,7 @@
           this.reloadBtn.innerHTML = ICONS.reload;
           this.micToggle.innerHTML = ICONS.micOn;
           this.cameraToggle.innerHTML = ICONS.cameraOn;
+          this.topButton.innerHTML = ICONS.share + '<span>Share Offer Link</span>';
         }
 
         setupEventListeners() {
@@ -763,11 +769,11 @@
         setButtonState(state) {
           this.buttonState = state;
           if (state === 'share') {
-            this.topButton.textContent = 'Share Offer Link';
+            this.topButton.innerHTML = ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
           } else if (state === 'paste') {
-            this.topButton.textContent = 'Paste Answer Code';
+            this.topButton.innerHTML = ICONS.paste + '<span>Paste Answer Code</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
           } else if (state === 'close') {
@@ -824,15 +830,21 @@
             this.topButton.classList.add('loading');
             this.topButton.disabled = true;
             if (statusText) {
-              this.topButton.dataset.originalText = this.topButton.textContent;
-              this.topButton.textContent = statusText;
+              // Save original HTML and update only the text part
+              this.topButton.dataset.originalHTML = this.topButton.innerHTML;
+              const span = this.topButton.querySelector('span');
+              if (span) {
+                span.textContent = statusText;
+              } else {
+                this.topButton.textContent = statusText;
+              }
             }
           } else {
             this.topButton.classList.remove('loading');
             this.topButton.disabled = false;
-            if (this.topButton.dataset.originalText) {
-              this.topButton.textContent = this.topButton.dataset.originalText;
-              delete this.topButton.dataset.originalText;
+            if (this.topButton.dataset.originalHTML) {
+              this.topButton.innerHTML = this.topButton.dataset.originalHTML;
+              delete this.topButton.dataset.originalHTML;
             }
           }
         }
@@ -1069,7 +1081,7 @@
 
             // Store answer code for share button
             this.topButton.dataset.answerCode = encoded;
-            this.topButton.textContent = 'Share Answer Code';
+            this.topButton.innerHTML = ICONS.share + '<span>Share Answer Code</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
             this.topButton.onclick = async () => {
