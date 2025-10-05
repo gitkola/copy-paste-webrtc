@@ -19,6 +19,9 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <title>P2P WebRTC</title>
+    <!-- QR Code Libraries -->
+    <script type="text/javascript" src="qrcode.js"></script>
+    <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
       * {
         margin: 0;
@@ -411,7 +414,7 @@
       /* Toast */
       #toast {
         position: absolute;
-        top: 80px;
+        bottom: 80px;
         left: 50%;
         transform: translateX(-50%);
         background: rgba(0, 0, 0, 0.9);
@@ -454,6 +457,179 @@
       #paste-modal.hidden {
         display: none !important;
       }
+
+      /* QR Code Modal */
+      #qr-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 30px;
+        z-index: 25;
+        pointer-events: auto;
+        max-width: 90%;
+        max-height: 90%;
+        overflow: auto;
+      }
+
+      #qr-modal.hidden {
+        display: none !important;
+      }
+
+      #qr-paste-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 30px;
+        z-index: 25;
+        pointer-events: auto;
+        max-width: 90%;
+        width: 500px;
+      }
+
+      #qr-paste-modal.hidden {
+        display: none !important;
+      }
+
+      #qr-paste-modal h3 {
+        color: #fff;
+        margin-bottom: 20px;
+        font-size: 20px;
+        text-align: center;
+      }
+
+      #qr-modal h3 {
+        color: #fff;
+        margin-bottom: 20px;
+        font-size: 20px;
+        text-align: center;
+      }
+
+      #qr-display {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      #qr-display canvas {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .qr-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .qr-actions button {
+        flex: 1;
+        min-width: 120px;
+        padding: 14px 24px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .qr-actions button:active {
+        transform: scale(0.95);
+      }
+
+      #qr-share {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+      }
+
+      #qr-download {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      #qr-close {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      /* QR Paste Area */
+      #qr-paste-area {
+        margin-top: 20px;
+        padding: 20px;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+      }
+
+      #qr-paste-area.dragover {
+        border-color: #00ff88;
+        background: rgba(0, 255, 136, 0.1);
+      }
+
+      #qr-file-input {
+        display: none;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .secondary-btn {
+        pointer-events: auto;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        touch-action: manipulation;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .secondary-btn:active {
+        transform: scale(0.95);
+        background: rgba(0, 0, 0, 0.9);
+      }
+
+      .secondary-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      #button-group-container {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
@@ -474,6 +650,12 @@
       <button id="reload-btn" class="toggle-btn"></button>
 
       <button id="top-button" class="control-btn primary"></button>
+
+      <!-- QR Code Buttons -->
+      <div id="button-group-container">
+        <button id="qr-show-btn" class="secondary-btn hidden">Show QR</button>
+        <button id="qr-paste-btn" class="secondary-btn hidden">Paste QR</button>
+      </div>
 
       <div id="bottom-controls">
         <button id="mic-toggle" class="toggle-btn"></button>
@@ -496,6 +678,33 @@
 
     <!-- Toast Notification -->
     <div id="toast"></div>
+
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="hidden">
+      <h3>QR Code</h3>
+      <div id="qr-display"></div>
+      <div class="qr-actions">
+        <button id="qr-share">Share Image</button>
+        <button id="qr-download">Download</button>
+        <button id="qr-close">Close</button>
+      </div>
+    </div>
+
+    <!-- QR Paste Modal -->
+    <div id="qr-paste-modal" class="hidden">
+      <h3>Paste or Upload QR Code</h3>
+      <div id="qr-paste-area">
+        <p>📋 Paste QR image (Ctrl+V / Cmd+V)</p>
+        <p>or</p>
+        <button id="qr-upload-btn" class="control-btn" style="margin-top: 10px">
+          Choose File
+        </button>
+      </div>
+      <input type="file" id="qr-file-input" accept="image/*" />
+      <div class="modal-actions" style="margin-top: 20px">
+        <button id="qr-paste-cancel">Cancel</button>
+      </div>
+    </div>
 
     <script>
       const ICONS = {
@@ -540,6 +749,15 @@
           this.answerInput = document.getElementById('answer-input');
           this.toast = document.getElementById('toast');
 
+          // QR Code elements
+          this.qrShowBtn = document.getElementById('qr-show-btn');
+          this.qrPasteBtn = document.getElementById('qr-paste-btn');
+          this.qrModal = document.getElementById('qr-modal');
+          this.qrPasteModal = document.getElementById('qr-paste-modal');
+          this.qrDisplay = document.getElementById('qr-display');
+          this.qrFileInput = document.getElementById('qr-file-input');
+          this.currentQRData = null;
+
           this.iceServers = [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
@@ -555,7 +773,8 @@
           this.reloadBtn.innerHTML = ICONS.reload;
           this.micToggle.innerHTML = ICONS.micOn;
           this.cameraToggle.innerHTML = ICONS.cameraOn;
-          this.topButton.innerHTML = ICONS.share + '<span>Share Offer Link</span>';
+          this.topButton.innerHTML =
+            ICONS.share + '<span>Share Offer Link</span>';
         }
 
         setupEventListeners() {
@@ -598,6 +817,45 @@
           // Auto-paste detection
           this.answerInput.addEventListener('paste', () => {
             setTimeout(() => this.processAnswer(), 100);
+          });
+
+          // QR Code buttons
+          this.qrShowBtn.addEventListener('click', () => this.showQRCode());
+          this.qrPasteBtn.addEventListener('click', () =>
+            this.showQRPasteModal()
+          );
+
+          // QR Modal actions
+          document
+            .getElementById('qr-share')
+            .addEventListener('click', () => this.shareQRCode());
+          document
+            .getElementById('qr-download')
+            .addEventListener('click', () => this.downloadQRCode());
+          document
+            .getElementById('qr-close')
+            .addEventListener('click', () =>
+              this.qrModal.classList.add('hidden')
+            );
+
+          // QR Paste Modal actions
+          document
+            .getElementById('qr-paste-cancel')
+            .addEventListener('click', () =>
+              this.qrPasteModal.classList.add('hidden')
+            );
+          document
+            .getElementById('qr-upload-btn')
+            .addEventListener('click', () => this.qrFileInput.click());
+          this.qrFileInput.addEventListener('change', (e) =>
+            this.handleQRFileUpload(e)
+          );
+
+          // QR Paste area - keyboard paste
+          document.addEventListener('paste', (e) => {
+            if (!this.qrPasteModal.classList.contains('hidden')) {
+              this.handleQRPaste(e);
+            }
           });
         }
 
@@ -769,17 +1027,28 @@
         setButtonState(state) {
           this.buttonState = state;
           if (state === 'share') {
-            this.topButton.innerHTML = ICONS.share + '<span>Share Offer Link</span>';
+            this.topButton.innerHTML =
+              ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
+            // Show QR button for offer
+            this.qrShowBtn.classList.remove('hidden');
+            this.qrPasteBtn.classList.add('hidden');
           } else if (state === 'paste') {
-            this.topButton.innerHTML = ICONS.paste + '<span>Paste Answer Code</span>';
+            this.topButton.innerHTML =
+              ICONS.paste + '<span>Paste Answer Code</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
+            // Show QR paste button for answer
+            this.qrShowBtn.classList.add('hidden');
+            this.qrPasteBtn.classList.remove('hidden');
           } else if (state === 'close') {
             this.topButton.innerHTML = ICONS.close;
             this.topButton.classList.remove('primary');
             this.topButton.classList.add('close-btn');
+            // Hide QR buttons when connected
+            this.qrShowBtn.classList.add('hidden');
+            this.qrPasteBtn.classList.add('hidden');
 
             // Move mic/camera controls to top
             const bottomControls = document.getElementById('bottom-controls');
@@ -931,6 +1200,7 @@
 
           this.topButton.dataset.offerUrl = url;
           this.setLoading(false);
+          this.setButtonState('share');
           this.showToast('Offer ready to share');
         }
 
@@ -1081,7 +1351,8 @@
 
             // Store answer code for share button
             this.topButton.dataset.answerCode = encoded;
-            this.topButton.innerHTML = ICONS.share + '<span>Share Answer Code</span>';
+            this.topButton.innerHTML =
+              ICONS.share + '<span>Share Answer Code</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
             this.topButton.onclick = async () => {
@@ -1242,6 +1513,237 @@
 
             pc.addEventListener('icegatheringstatechange', onStateChange);
             setTimeout(resolve, 3000);
+          });
+        }
+
+        // QR Code Generation
+        async showQRCode() {
+          // Check if QRCode library is loaded
+          if (typeof QRCode === 'undefined') {
+            this.showToast('❌ QR Code library not loaded');
+            console.error(
+              'QRCode library is not available. Check if CDN is accessible.'
+            );
+            return;
+          }
+
+          let dataToEncode;
+
+          if (this.buttonState === 'share') {
+            // Generate QR for offer
+            dataToEncode = this.topButton.dataset.offerUrl || '';
+          } else {
+            // For answer code (responder scenario)
+            dataToEncode = this.topButton.dataset.answerCode || '';
+          }
+
+          console.log(
+            'Generating QR code for:',
+            dataToEncode.substring(0, 50) + '...'
+          );
+
+          if (!dataToEncode) {
+            this.showToast('❌ No data to generate QR code');
+            return;
+          }
+
+          try {
+            // Clear previous QR
+            this.qrDisplay.innerHTML = '';
+
+            // Generate QR code
+            const canvas = document.createElement('canvas');
+
+            // Call QRCode.toCanvas with proper syntax
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                dataToEncode,
+                {
+                  errorCorrectionLevel: 'M',
+                  width: 400,
+                  margin: 2,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    resolve();
+                  }
+                }
+              );
+            });
+
+            this.qrDisplay.appendChild(canvas);
+            this.currentQRData = canvas;
+            this.qrModal.classList.remove('hidden');
+            this.showToast('✅ QR Code generated');
+            console.log('QR code generated successfully');
+          } catch (err) {
+            console.error('QR generation error:', err);
+            this.showToast('❌ Failed to generate QR code: ' + err.message);
+          }
+        }
+
+        async shareQRCode() {
+          if (!this.currentQRData) return;
+
+          try {
+            // Convert canvas to blob
+            const blob = await new Promise((resolve) => {
+              this.currentQRData.toBlob(resolve, 'image/png');
+            });
+
+            const file = new File([blob], 'webrtc-connection.png', {
+              type: 'image/png',
+            });
+
+            // Try native share API
+            if (navigator.share && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: 'WebRTC Connection',
+                text: 'Scan this QR code to connect',
+              });
+              this.showToast('✅ QR Code shared');
+            } else {
+              // Fallback to clipboard
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob }),
+              ]);
+              this.showToast('✅ QR Code copied to clipboard');
+            }
+          } catch (err) {
+            console.error('Share failed:', err);
+            this.showToast('❌ Failed to share QR code');
+          }
+        }
+
+        async downloadQRCode() {
+          if (!this.currentQRData) return;
+
+          try {
+            const url = this.currentQRData.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'webrtc-connection.png';
+            link.href = url;
+            link.click();
+            this.showToast('✅ QR Code downloaded');
+          } catch (err) {
+            console.error('Download failed:', err);
+            this.showToast('❌ Failed to download QR code');
+          }
+        }
+
+        // QR Code Decoding
+        showQRPasteModal() {
+          this.qrPasteModal.classList.remove('hidden');
+        }
+
+        async handleQRPaste(event) {
+          const items = event.clipboardData?.items;
+          if (!items) return;
+
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              const blob = item.getAsFile();
+              await this.decodeQRFromBlob(blob);
+              break;
+            }
+          }
+        }
+
+        async handleQRFileUpload(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+
+          await this.decodeQRFromBlob(file);
+          this.qrFileInput.value = ''; // Reset input
+        }
+
+        async decodeQRFromBlob(blob) {
+          try {
+            this.showToast('🔍 Decoding QR code...');
+
+            const imageDataURL = await this.blobToDataURL(blob);
+            const decoded = await this.decodeQRFromImage(imageDataURL);
+
+            if (decoded) {
+              this.qrPasteModal.classList.add('hidden');
+
+              // Check if it's a URL (offer) or base64 code (answer)
+              if (decoded.startsWith('http')) {
+                // It's an offer URL - extract hash
+                try {
+                  const url = new URL(decoded);
+                  if (url.hash) {
+                    location.href = decoded; // Reload with offer
+                    return;
+                  }
+                } catch (e) {
+                  console.error('Invalid URL:', e);
+                }
+              } else {
+                // It's an answer code
+                this.answerInput.value = decoded;
+                await this.processAnswer();
+              }
+
+              this.showToast('✅ QR code decoded');
+            } else {
+              this.showToast('❌ No QR code found in image');
+            }
+          } catch (err) {
+            console.error('QR decode error:', err);
+            this.showToast('❌ Failed to decode QR code');
+          }
+        }
+
+        async decodeQRFromImage(imageDataURL) {
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
+
+              // Use jsQR library to decode
+              const code = jsQR(
+                imageData.data,
+                imageData.width,
+                imageData.height,
+                {
+                  inversionAttempts: 'dontInvert',
+                }
+              );
+
+              resolve(code ? code.data : null);
+            };
+            img.onerror = () => resolve(null);
+            img.src = imageDataURL;
+          });
+        }
+
+        blobToDataURL(blob) {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
           });
         }
       }
