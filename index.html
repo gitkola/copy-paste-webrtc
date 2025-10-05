@@ -114,20 +114,29 @@
         bottom: 80px;
         right: 20px;
         z-index: 2;
-        border: 2px solid #00ff88;
         border-radius: 12px;
+      }
+
+      #video-grid-view.mode-full #local-video.thumbnail {
+        border-color: #0088ff;
       }
 
       video {
         background: #1a1a1a;
         object-fit: cover;
         cursor: pointer;
-        transition: all 0.3s ease;
+        /* transition: all 0.3s ease; */
         touch-action: none;
       }
 
       #local-video {
         transform: scaleX(-1);
+        border: 3px solid #0088ff;
+      }
+
+      /* Disable pointer events on local video before connection */
+      #local-video.no-click {
+        pointer-events: none;
       }
 
       video.hidden {
@@ -369,7 +378,13 @@
   <body>
     <!-- Video Grid View Layer -->
     <div id="video-grid-view">
-      <video id="local-video" autoplay muted playsinline></video>
+      <video
+        id="local-video"
+        autoplay
+        muted
+        playsinline
+        class="no-click"
+      ></video>
       <video id="remote-video" autoplay playsinline class="hidden"></video>
     </div>
 
@@ -902,6 +917,9 @@
 
           // Enable split view mode when connected
           this.videoGrid.classList.add('mode-split-v');
+
+          // Enable click on local video after connection
+          this.localVideo.classList.remove('no-click');
 
           this.setButtonState('close');
           this.showToast('🎉 Connected!');
