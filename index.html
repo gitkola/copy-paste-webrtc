@@ -136,7 +136,6 @@
         background: #1a1a1a;
         object-fit: cover;
         cursor: pointer;
-        /* transition: all 0.3s ease; */
         touch-action: none;
       }
 
@@ -740,6 +739,33 @@
     </div>
 
     <script>
+      const CONFIG = {
+        // Timeouts (ms)
+        TOAST_DURATION: 2000,
+        AUTO_PASTE_DELAY: 100,
+        MEDIA_NEGOTIATION_DELAY: 500,
+        ICE_GATHERING_TIMEOUT: 5000,
+
+        // Video settings
+        VIDEO_WIDTH: 640,
+        VIDEO_HEIGHT: 480,
+
+        // QR Code settings
+        QR_SIZE: 600,
+        QR_ERROR_CORRECTION: 'L',
+        QR_MARGIN: 4,
+
+        // WebRTC settings
+        ICE_CANDIDATE_POOL_SIZE: 10,
+
+        // ICE servers
+        ICE_SERVERS: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+      };
+
       const ICONS = {
         close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
         micOn: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>`,
@@ -766,9 +792,8 @@
           this.qrPasteContext = 'offer'; // 'offer' or 'answer' - what type of QR we're expecting
           this.micEnabled = true;
           this.cameraEnabled = true;
-          this.controlsVisible = true;
-          this.controlsTimer = null;
           this.isLoading = false;
+          this.isProcessing = false; // Prevent duplicate button clicks
 
           // DOM elements
           this.localVideo = document.getElementById('local-video');
@@ -794,12 +819,6 @@
           this.qrDisplay = document.getElementById('qr-display');
           this.qrFileInput = document.getElementById('qr-file-input');
           this.currentQRData = null;
-
-          this.iceServers = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-          ];
 
           this.setupEventListeners();
           this.initializeIcons();
@@ -849,11 +868,9 @@
               this.processAnswer();
             });
 
-          // Disabled screen tap to toggle controls - controls are always visible
-
           // Auto-paste detection
           this.answerInput.addEventListener('paste', () => {
-            setTimeout(() => this.processAnswer(), 100);
+            setTimeout(() => this.processAnswer(), CONFIG.AUTO_PASTE_DELAY);
           });
 
           // QR Code buttons
@@ -912,16 +929,20 @@
           }
         }
 
+        /**
+         * Request and setup user's camera and microphone.
+         * Displays video in local video element.
+         * @returns {Promise<void>}
+         */
         async setupCamera() {
           try {
             this.localStream = await navigator.mediaDevices.getUserMedia({
-              video: { width: 640, height: 480 },
+              video: { width: CONFIG.VIDEO_WIDTH, height: CONFIG.VIDEO_HEIGHT },
               audio: true,
             });
             this.localVideo.srcObject = this.localStream;
           } catch (err) {
-            console.error('Camera error:', err);
-            this.showToast('Camera access denied');
+            this.handleError('❌ Camera access denied', err);
           }
         }
 
@@ -976,6 +997,11 @@
 
         // Button state machine
         async handleTopButtonClick() {
+          if (this.isProcessing) {
+            console.log('Already processing, ignoring click');
+            return;
+          }
+
           if (this.buttonState === 'share') {
             this.copyOfferLink();
           } else if (this.buttonState === 'paste') {
@@ -1132,14 +1158,29 @@
           this.cameraToggle.classList.toggle('off', !this.cameraEnabled);
         }
 
-        // Controls are always visible - no hiding functionality
-
         showToast(message) {
           this.toast.textContent = message;
           this.toast.classList.add('show');
           setTimeout(() => {
             this.toast.classList.remove('show');
-          }, 2000);
+          }, CONFIG.TOAST_DURATION);
+        }
+
+        /**
+         * Handle errors consistently: log to console and show user-friendly message.
+         * @param {string} userMessage - Message to show to the user
+         * @param {Error|string} error - Error object or message to log
+         * @param {boolean} shouldCleanup - Whether to clean up connections (default: false)
+         */
+        handleError(userMessage, error, shouldCleanup = false) {
+          console.error(userMessage, error);
+          this.showToast(userMessage);
+          this.setLoading(false);
+          this.isProcessing = false;
+
+          if (shouldCleanup) {
+            this.cleanup();
+          }
         }
 
         setLoading(loading, statusText = '') {
@@ -1175,18 +1216,60 @@
           location.reload();
         }
 
+        /**
+         * Clean up peer connections and resources.
+         * Call this before creating new connections or on errors.
+         */
+        cleanup() {
+          console.log('🧹 Cleaning up peer connections...');
+
+          // Close data peer connection
+          if (this.pc) {
+            this.pc.close();
+            this.pc = null;
+          }
+
+          // Close media peer connection
+          if (this.mediaPc) {
+            this.mediaPc.close();
+            this.mediaPc = null;
+          }
+
+          // Close data channel
+          if (this.dataChannel) {
+            this.dataChannel.close();
+            this.dataChannel = null;
+          }
+
+          this.connectionEstablished = false;
+          this.isProcessing = false;
+          console.log('✅ Cleanup complete');
+        }
+
         closeConnection() {
+          this.cleanup();
           this.reloadPage();
         }
 
+        /**
+         * Create the initial data channel peer connection.
+         * This is used to exchange media negotiation messages.
+         * @returns {Promise<void>}
+         */
         async createDataConnection() {
           this.pc = new RTCPeerConnection({
-            iceServers: this.iceServers,
-            iceCandidatePoolSize: 10,
+            iceServers: CONFIG.ICE_SERVERS,
+            iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
           });
 
           this.pc.oniceconnectionstatechange = () => {
             console.log('ICE:', this.pc.iceConnectionState);
+            // Handle ICE connection failures
+            if (this.pc.iceConnectionState === 'failed' || this.pc.iceConnectionState === 'closed') {
+              console.error('❌ ICE connection failed or closed');
+              this.showToast('❌ Connection failed');
+              this.cleanup();
+            }
           };
 
           if (this.role === 'initiator') {
@@ -1208,7 +1291,7 @@
               !this.connectionEstablished
             ) {
               this.connectionEstablished = true;
-              setTimeout(() => this.startMediaNegotiation(), 500);
+              setTimeout(() => this.startMediaNegotiation(), CONFIG.MEDIA_NEGOTIATION_DELAY);
             }
           };
         }
@@ -1229,6 +1312,11 @@
           };
         }
 
+        /**
+         * Generate WebRTC offer and create shareable URL.
+         * Encodes the offer as base64 in the URL hash.
+         * @returns {Promise<void>}
+         */
         async generateOffer() {
           this.setLoading(true, 'Generating offer');
 
@@ -1244,127 +1332,10 @@
           const encoded = btoa(JSON.stringify(offerData));
           const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
 
-          // 📊 COMPARISON: Measure offer size WITH media tracks
-          // await this.compareOfferSizes(offerData);
-
           this.topButton.dataset.offerUrl = url;
           this.setLoading(false);
           this.setButtonState('share');
           this.showToast('Offer ready to share');
-        }
-
-        async compareOfferSizes(offerWithoutMedia) {
-          console.log('\n📊 ===== OFFER SIZE COMPARISON =====');
-
-          // Current offer (without media)
-          const withoutMediaJSON = JSON.stringify(offerWithoutMedia);
-          const withoutMediaEncoded = btoa(withoutMediaJSON);
-          const withoutMediaSDP = offerWithoutMedia.sdp;
-
-          console.log('❌ Current Offer (WITHOUT media tracks):');
-          console.log('   SDP lines:', withoutMediaSDP.split('\n').length);
-          console.log('   SDP bytes:', new Blob([withoutMediaSDP]).size);
-          console.log('   JSON bytes:', new Blob([withoutMediaJSON]).size);
-          console.log('   Base64 bytes:', new Blob([withoutMediaEncoded]).size);
-          console.log('   URL length:', withoutMediaEncoded.length);
-
-          // Create test connection WITH media
-          const testPc = new RTCPeerConnection({
-            iceServers: this.iceServers,
-            iceCandidatePoolSize: 10,
-          });
-
-          if (this.localStream) {
-            this.localStream.getTracks().forEach((track) => {
-              testPc.addTrack(track, this.localStream);
-            });
-          }
-
-          const testOffer = await testPc.createOffer();
-          await testPc.setLocalDescription(testOffer);
-
-          // Wait for ICE (brief wait)
-          await new Promise((resolve) => {
-            if (testPc.iceGatheringState === 'complete') {
-              resolve();
-            } else {
-              const onStateChange = () => {
-                if (testPc.iceGatheringState === 'complete') {
-                  testPc.removeEventListener(
-                    'icegatheringstatechange',
-                    onStateChange
-                  );
-                  resolve();
-                }
-              };
-              testPc.addEventListener('icegatheringstatechange', onStateChange);
-              setTimeout(resolve, 2000);
-            }
-          });
-
-          const withMediaData = {
-            type: 'offer',
-            sdp: testPc.localDescription.sdp,
-          };
-          const withMediaJSON = JSON.stringify(withMediaData);
-          const withMediaEncoded = btoa(withMediaJSON);
-          const withMediaSDP = withMediaData.sdp;
-
-          console.log('\n✅ Test Offer (WITH media tracks):');
-          console.log('   SDP lines:', withMediaSDP.split('\n').length);
-          console.log('   SDP bytes:', new Blob([withMediaSDP]).size);
-          console.log('   JSON bytes:', new Blob([withMediaJSON]).size);
-          console.log('   Base64 bytes:', new Blob([withMediaEncoded]).size);
-          console.log('   URL length:', withMediaEncoded.length);
-
-          console.log('\n📈 Difference:');
-          const sdpDiff =
-            new Blob([withMediaSDP]).size - new Blob([withoutMediaSDP]).size;
-          const jsonDiff =
-            new Blob([withMediaJSON]).size - new Blob([withoutMediaJSON]).size;
-          const encodedDiff =
-            new Blob([withMediaEncoded]).size -
-            new Blob([withoutMediaEncoded]).size;
-          const linesDiff =
-            withMediaSDP.split('\n').length -
-            withoutMediaSDP.split('\n').length;
-
-          console.log('   +' + linesDiff + ' SDP lines');
-          console.log(
-            '   +' +
-              sdpDiff +
-              ' bytes SDP (' +
-              ((sdpDiff / new Blob([withoutMediaSDP]).size) * 100).toFixed(1) +
-              '% increase)'
-          );
-          console.log(
-            '   +' +
-              jsonDiff +
-              ' bytes JSON (' +
-              ((jsonDiff / new Blob([withoutMediaJSON]).size) * 100).toFixed(
-                1
-              ) +
-              '% increase)'
-          );
-          console.log(
-            '   +' +
-              encodedDiff +
-              ' bytes Base64 (' +
-              (
-                (encodedDiff / new Blob([withoutMediaEncoded]).size) *
-                100
-              ).toFixed(1) +
-              '% increase)'
-          );
-
-          console.log(
-            '\n💡 Including media would add ~' +
-              (encodedDiff / 1024).toFixed(2) +
-              ' KB to the copy-paste code'
-          );
-          console.log('===================================\n');
-
-          testPc.close();
         }
 
         async handleOffer() {
@@ -1425,22 +1396,34 @@
             this.qrPasteBtn.classList.add('hidden');
 
             this.showToast('Answer code ready to share');
+            this.isProcessing = false; // Clear processing flag after becoming responder
           } catch (err) {
-            console.error('Handle offer error:', err);
-            this.setLoading(false);
-            this.showToast('❌ Error processing offer');
+            this.handleError('❌ Error processing offer', err, true);
           }
         }
 
+        /**
+         * Process answer code from responder to complete connection.
+         * Decodes base64 answer and sets as remote description.
+         * @returns {Promise<void>}
+         */
         async processAnswer() {
+          if (this.isProcessing) {
+            console.log('Already processing answer, ignoring');
+            return;
+          }
+
           const input = this.answerInput.value.trim();
           if (!input) return;
+
+          this.isProcessing = true;
 
           try {
             const data = JSON.parse(atob(input));
 
             if (data.type !== 'answer') {
               this.showToast('❌ Invalid answer code');
+              this.isProcessing = false;
               return;
             }
 
@@ -1455,10 +1438,9 @@
 
             this.answerInput.value = '';
             // Loading state will be cleared when connection is established
+            // isProcessing will be cleared when connection completes
           } catch (err) {
-            console.error('Process answer error:', err);
-            this.setLoading(false);
-            this.showToast('❌ Invalid answer code');
+            this.handleError('❌ Invalid answer code', err);
           }
         }
 
@@ -1470,21 +1452,33 @@
           }
         }
 
-        async sendMediaOffer() {
-          this.mediaPc = new RTCPeerConnection({
-            iceServers: this.iceServers,
-            iceCandidatePoolSize: 10,
+        /**
+         * Create and configure media peer connection with local stream.
+         * @returns {RTCPeerConnection} Configured media peer connection
+         */
+        createMediaPeerConnection() {
+          const mediaPc = new RTCPeerConnection({
+            iceServers: CONFIG.ICE_SERVERS,
+            iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
           });
 
+          // Add local stream tracks if available
           if (this.localStream) {
             this.localStream.getTracks().forEach((track) => {
-              this.mediaPc.addTrack(track, this.localStream);
+              mediaPc.addTrack(track, this.localStream);
             });
           }
 
-          this.mediaPc.ontrack = (event) => {
+          // Set up remote stream handler
+          mediaPc.ontrack = (event) => {
             this.showConnectedState(event.streams[0]);
           };
+
+          return mediaPc;
+        }
+
+        async sendMediaOffer() {
+          this.mediaPc = this.createMediaPeerConnection();
 
           const offer = await this.mediaPc.createOffer();
           await this.mediaPc.setLocalDescription(offer);
@@ -1499,20 +1493,7 @@
         }
 
         async handleMediaOffer(data) {
-          this.mediaPc = new RTCPeerConnection({
-            iceServers: this.iceServers,
-            iceCandidatePoolSize: 10,
-          });
-
-          if (this.localStream) {
-            this.localStream.getTracks().forEach((track) => {
-              this.mediaPc.addTrack(track, this.localStream);
-            });
-          }
-
-          this.mediaPc.ontrack = (event) => {
-            this.showConnectedState(event.streams[0]);
-          };
+          this.mediaPc = this.createMediaPeerConnection();
 
           await this.mediaPc.setRemoteDescription({
             type: 'offer',
@@ -1551,37 +1532,54 @@
 
           // Clear loading state
           this.setLoading(false);
+          this.isProcessing = false;
 
           this.setButtonState('close');
           this.showToast('🎉 Connected!');
           this.updateVideoLayout();
-
-          // Controls stay visible - no auto-hide
         }
 
+        /**
+         * Wait for ICE candidate gathering to complete with timeout.
+         * Resolves when gathering is complete or timeout is reached.
+         * @param {RTCPeerConnection} pc - The peer connection to wait for
+         * @returns {Promise<void>}
+         */
         waitForICE(pc = this.pc) {
           return new Promise((resolve) => {
             if (pc.iceGatheringState === 'complete') {
+              console.log('ICE gathering already complete');
               resolve();
               return;
             }
 
+            let timeout;
             const onStateChange = () => {
+              console.log('ICE gathering state:', pc.iceGatheringState);
               if (pc.iceGatheringState === 'complete') {
-                pc.removeEventListener(
-                  'icegatheringstatechange',
-                  onStateChange
-                );
+                pc.removeEventListener('icegatheringstatechange', onStateChange);
+                clearTimeout(timeout);
+                console.log('✅ ICE gathering complete');
                 resolve();
               }
             };
 
             pc.addEventListener('icegatheringstatechange', onStateChange);
-            setTimeout(resolve, 3000);
+
+            // Timeout fallback - proceed even if gathering incomplete
+            timeout = setTimeout(() => {
+              pc.removeEventListener('icegatheringstatechange', onStateChange);
+              console.log('⏱️ ICE gathering timeout reached, proceeding anyway');
+              resolve();
+            }, CONFIG.ICE_GATHERING_TIMEOUT);
           });
         }
 
-        // QR Code Generation
+        /**
+         * Generate and display QR code for current offer or answer.
+         * Automatically detects whether to encode offer URL or answer code.
+         * @returns {Promise<void>}
+         */
         async showQRCode() {
           // Check if QRCode library is loaded
           if (typeof QRCode === 'undefined') {
@@ -1634,9 +1632,9 @@
                 canvas,
                 dataToEncode,
                 {
-                  errorCorrectionLevel: 'L', // Low error correction = simpler QR code
-                  width: 600, // Larger size for better scanning
-                  margin: 4,
+                  errorCorrectionLevel: CONFIG.QR_ERROR_CORRECTION,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
                   color: {
                     dark: '#000000',
                     light: '#FFFFFF',
@@ -1658,8 +1656,7 @@
             this.showToast('✅ QR Code generated');
             console.log('QR code generated successfully');
           } catch (err) {
-            console.error('QR generation error:', err);
-            this.showToast('❌ Failed to generate QR code: ' + err.message);
+            this.handleError('❌ Failed to generate QR code', err);
           }
         }
 
@@ -1717,8 +1714,7 @@
               this.showToast('❌ Please use Download button');
             }
           } catch (err) {
-            console.error('Share failed:', err);
-            this.showToast('❌ Share failed. Use Download button');
+            this.handleError('❌ Share failed. Use Download button', err);
           }
         }
 
@@ -1733,8 +1729,7 @@
             link.click();
             this.showToast('✅ QR Code downloaded');
           } catch (err) {
-            console.error('Download failed:', err);
-            this.showToast('❌ Failed to download QR code');
+            this.handleError('❌ Failed to download QR code', err);
           }
         }
 
@@ -1772,7 +1767,20 @@
           this.qrFileInput.value = ''; // Reset input
         }
 
+        /**
+         * Decode QR code from image blob and process offer or answer.
+         * Uses context (offer/answer) to validate and route the decoded data.
+         * @param {Blob} blob - Image blob containing QR code
+         * @returns {Promise<void>}
+         */
         async decodeQRFromBlob(blob) {
+          if (this.isProcessing) {
+            console.log('Already processing QR code, ignoring');
+            return;
+          }
+
+          this.isProcessing = true;
+
           try {
             this.showToast('🔍 Decoding QR code...');
 
@@ -1810,8 +1818,8 @@
                         this.dataChannel = null;
                       }
 
-                      // Set the hash in location for consistency
-                      location.hash = offerData;
+                      // Set the hash using replaceState to avoid polluting browser history
+                      history.replaceState(null, '', `#${offerData}`);
 
                       // Directly process the offer
                       await this.handleOfferFromHash(offerData);
@@ -1821,6 +1829,7 @@
                   } catch (e) {
                     console.error('Invalid offer URL:', e);
                     this.showToast('❌ Invalid offer QR code');
+                    this.isProcessing = false;
                     return;
                   }
                 } else {
@@ -1837,6 +1846,7 @@
                     console.error('Not a valid offer:', e);
                   }
                   this.showToast("❌ This doesn't look like an offer QR code");
+                  this.isProcessing = false;
                   return;
                 }
               } else if (this.qrPasteContext === 'answer') {
@@ -1849,6 +1859,7 @@
                 // Answer should be base64, not a URL
                 if (decoded.startsWith('http')) {
                   this.showToast('❌ This looks like an offer, not an answer');
+                  this.isProcessing = false;
                   return;
                 }
 
@@ -1857,6 +1868,7 @@
                   if (data.type === 'answer') {
                     console.log('✅ Valid answer data');
                     this.answerInput.value = decoded;
+                    this.isProcessing = false; // Clear before calling processAnswer
                     await this.processAnswer();
                     this.showToast('✅ Answer received');
                     return;
@@ -1864,22 +1876,25 @@
                     this.showToast(
                       "❌ This doesn't look like an answer QR code"
                     );
+                    this.isProcessing = false;
                     return;
                   }
                 } catch (e) {
                   console.error('Invalid answer data:', e);
                   this.showToast('❌ Invalid answer QR code');
+                  this.isProcessing = false;
                   return;
                 }
               }
 
               this.showToast('✅ QR code decoded');
+              this.isProcessing = false;
             } else {
               this.showToast('❌ No QR code found in image');
+              this.isProcessing = false;
             }
           } catch (err) {
-            console.error('QR decode error:', err);
-            this.showToast('❌ Failed to decode QR code');
+            this.handleError('❌ Failed to decode QR code', err);
           }
         }
 
