@@ -21,7 +21,8 @@ The app uses **manual signaling** (copy-paste or QR codes) instead of a traditio
 
 **QR Code Flow:**
 - Offers and answers can be shared via QR codes instead of copy-paste
-- "Show QR" button generates QR codes (offer URL or answer base64)
+- **"Share QR Offer"** button (NEW!) - One-click: generates QR and opens native share menu directly
+- "Show QR" button - Generates QR codes in modal (offer URL or answer base64) for manual sharing
 - "Paste QR Offer" and "Paste QR Answer" buttons scan/upload QR code images
 - Context-aware validation ensures correct QR type is used
 - No typing or copy-paste required - fully visual workflow
@@ -47,12 +48,13 @@ The app establishes connections in two stages:
   - `dataChannel`: For sending media negotiation messages
   - `localStream`: User's camera/microphone
   - `videoMode`: Controls layout ('split', 'local-full', 'remote-full')
-  - `buttonState`: UI state ('share', 'paste', 'close')
+  - `buttonState`: UI state ('ready', 'share', 'paste', 'close')
 
 ### UI State Management
 
 The button state machine transitions through:
-- `share`: Initial state, shows "Share Offer Link" button
+- `ready`: Initial state, no peer connection created yet (lazy initialization). Shows "Share Offer Link" and "Share QR Offer" buttons
+- `share`: After creating offer, shows "Share Offer Link" button and QR options
 - `paste`: After sharing, shows "Paste Answer Code" button
 - `close`: After connection established, shows close button
 
@@ -65,6 +67,13 @@ Video layout modes (toggled by clicking videos):
 
 The app supports complete QR code-based signaling as an alternative to copy-paste:
 
+- **Direct Sharing**: `shareQROfferDirect()` - One-click QR sharing workflow (NEW!)
+  - Creates peer connection if needed (lazy initialization)
+  - Generates QR code directly without showing modal
+  - Opens native share menu with QR image
+  - Fallback: Copies QR image to clipboard
+  - Automatically transitions to "Paste Answer" state
+
 - **Generation**: `showQRCode()` - Intelligently creates QR codes for either offer URLs or answer codes based on role
   - Offers: Encoded as full URL with hash (e.g., `http://localhost:3000/#eyJ0eXBlIjoi...`)
   - Answers: Encoded as base64 string directly (e.g., `eyJ0eXBlIjoiYW5zd2VyIi...`)
@@ -75,7 +84,9 @@ The app supports complete QR code-based signaling as an alternative to copy-past
   - Tries multiple image scales (1, 1.5, 2, 3, 4, 0.75, 0.5) for robust detection
   - Context-aware validation: rejects wrong QR type with clear error messages
 
-- **QR Paste Buttons**:
+- **QR Buttons**:
+  - `qr-share-offer-btn`: "Share QR Offer" (top secondary button, one-click sharing)
+  - `qr-show-btn`: "Show QR" (top secondary button, shows modal for manual sharing)
   - `initial-qr-paste-btn`: "Paste QR Offer" (bottom of screen, visible on initial load)
   - `qr-paste-btn`: "Paste QR Answer" (top secondary button, visible when waiting for answer)
   - `qrPasteContext`: Tracks expected QR type ('offer' or 'answer')
@@ -105,37 +116,55 @@ The app requires camera/microphone permissions and works best with two separate 
 ## How to Test
 
 ### Standard Copy-Paste Flow
-1. Open the app in one browser window (becomes initiator)
-2. Click "Share Offer Link" or use native share
-3. Open the link in another browser window/tab (becomes responder)
-4. Click "Share Answer Code" on responder side
-5. Click "Paste Answer Code" on initiator side and paste the code
-6. Connection establishes automatically
+1. Open the app in one browser window
+2. Click "Share Offer Link" → Creates peer connection and generates offer
+3. Share URL via native share or clipboard
+4. Open the link in another browser window/tab (becomes responder)
+5. Click "Share Answer Code" on responder side
+6. Click "Paste Answer Code" on initiator side and paste the code
+7. ✅ Connection establishes automatically
 
-### QR Code Flow (Complete Signaling via QR Codes)
+### One-Click QR Flow (Recommended - Fastest!)
 
 **Initiator (Person A):**
-1. Open app → Offer automatically generated
-2. Click "Show QR" (top secondary button) → Displays offer QR code
+1. Open app → Camera starts (no connection yet - lazy initialization)
+2. Click **"Share QR Offer"** → Creates connection, generates QR, opens share menu
+3. Share QR image to Person B (via any messaging app)
+4. Wait for Person B's answer QR
+5. Click "Paste QR Answer" → Upload Person B's answer QR image
+6. ✅ Connection established!
+
+**Responder (Person B):**
+1. Open app → Camera starts
+2. Click "Paste QR Offer" (bottom button)
+3. Upload Person A's offer QR image
+4. Click "Show QR" → Share answer QR back to Person A
+5. ✅ Connection established!
+
+### Traditional QR Code Flow (via Modal)
+
+**Initiator (Person A):**
+1. Open app → Click "Share Offer Link" (creates connection)
+2. Click "Show QR" (top secondary button) → Displays offer QR code in modal
 3. Download/share the QR code to Person B (via Share Image or Download)
-4. Both "Show QR" and "Paste QR Answer" buttons are now visible
-5. When Person B provides their answer QR, click "Paste QR Answer"
-6. Upload/paste Person B's answer QR code image
-7. ✅ Connection established!
+4. When Person B provides their answer QR, click "Paste QR Answer"
+5. Upload/paste Person B's answer QR code image
+6. ✅ Connection established!
 
 **Responder (Person B):**
 1. Open app → Click "Paste QR Offer" (bottom button)
 2. Upload/paste Person A's offer QR code image
 3. App processes offer and becomes responder
-4. Click "Show QR" → Generates and displays **answer QR code** (base64)
+4. Click "Show QR" → Generates and displays **answer QR code** (base64) in modal
 5. Share answer QR code to Person A
 6. ✅ Connection established!
 
 **Important Notes:**
+- **Lazy Initialization**: Peer connection is created only when user explicitly shares or pastes an offer
 - The "Paste QR Offer" button is always visible on initial screen
 - The "Paste QR Answer" button appears when initiator is ready for answer (in 'share' state)
 - QR type validation prevents pasting wrong QR code type with clear error messages
-- Both "Show QR" and "Paste QR Answer" are visible simultaneously for initiator
+- "Share QR Offer" provides the fastest workflow (no modal, direct share)
 
 ## Technical Details
 
@@ -150,13 +179,18 @@ No TURN servers configured (direct P2P only).
 
 ### Data Encoding
 
-All signaling data (offers/answers) is base64-encoded JSON containing SDP information. The format is:
+All signaling data (offers/answers) is base64-encoded JSON containing SDP information with ICE candidates embedded:
 ```json
 {
   "type": "offer" | "answer",
-  "sdp": "<SDP string>"
+  "sdp": "<SDP string with a=candidate lines>"
 }
 ```
+
+**ICE Candidate Gathering:**
+- **Initial data connection**: Waits for ICE candidates before sharing (required for copy-paste/QR signaling)
+- **Media connection**: Uses Trickle ICE - candidates sent separately via data channel as they arrive
+- This hybrid approach optimizes for both reliability (initial) and speed (media)
 
 ### Mobile Optimization
 
@@ -245,9 +279,22 @@ Starting media negotiation, role: initiator
 
 ### Key Functions for Debugging
 
+- `init()`: Sets up camera and determines initial state (lazy initialization)
+- `startAsInitiator(autoShare)`: Creates peer connection as initiator (called on user action)
+- `shareQROfferDirect()`: One-click QR generation and sharing without modal
 - `handleOfferFromHash(hashData)`: Processes offer from QR code or URL hash
 - `decodeQRFromBlob(blob)`: Decodes QR code with context validation
-- `showQRCode()`: Generates QR code (auto-detects offer vs answer)
+- `showQRCode()`: Generates QR code in modal (auto-detects offer vs answer)
 - `processAnswer()`: Processes answer code from QR or paste
 - `createDataConnection()`: Creates initial peer connection
-- `startMediaNegotiation()`: Initiates media exchange after data channel connects
+- `waitForICECandidates(pc)`: Waits for ICE gathering to complete (initial connection only)
+- `startMediaNegotiation()`: Initiates media exchange after data channel connects (uses Trickle ICE)
+
+### Code Quality
+
+The codebase has been refactored with:
+- **CONFIG object**: All magic numbers centralized (timeouts, video settings, QR settings)
+- **Error handling**: Standardized `handleError()` method throughout
+- **Cleanup**: Proper `cleanup()` method to prevent memory leaks
+- **Debouncing**: `isProcessing` flag prevents race conditions
+- **JSDoc comments**: All key methods documented with type information
