@@ -1262,6 +1262,16 @@
             iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
           });
 
+          this.pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              console.log('🧊 ICE candidate generated (data PC):', event.candidate.type);
+              // Candidates will be added automatically to the connection
+              // No need to send them manually with Trickle ICE in this implementation
+            } else {
+              console.log('✅ ICE candidate gathering complete (data PC)');
+            }
+          };
+
           this.pc.oniceconnectionstatechange = () => {
             console.log('ICE:', this.pc.iceConnectionState);
             // Handle ICE connection failures
@@ -1308,13 +1318,20 @@
               await this.handleMediaOffer(data);
             } else if (data.type === 'media-answer') {
               await this.handleMediaAnswer(data);
+            } else if (data.type === 'ice-candidate') {
+              // Trickle ICE: Receive and add ICE candidates for media connection
+              if (this.mediaPc && data.candidate) {
+                await this.mediaPc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                console.log('🧊 Added remote ICE candidate (media PC)');
+              }
             }
           };
         }
 
         /**
          * Generate WebRTC offer and create shareable URL.
-         * Encodes the offer as base64 in the URL hash.
+         * Waits for ICE candidates to be embedded in SDP before sharing.
+         * (Required for copy-paste signaling - no other way to exchange candidates)
          * @returns {Promise<void>}
          */
         async generateOffer() {
@@ -1322,7 +1339,9 @@
 
           const offer = await this.pc.createOffer();
           await this.pc.setLocalDescription(offer);
-          await this.waitForICE();
+
+          // Wait for ICE candidates - they must be in the SDP for copy-paste signaling
+          await this.waitForICECandidates(this.pc);
 
           const offerData = {
             type: 'offer',
@@ -1336,6 +1355,8 @@
           this.setLoading(false);
           this.setButtonState('share');
           this.showToast('Offer ready to share');
+
+          console.log('📤 Offer created with ICE candidates embedded in SDP');
         }
 
         async handleOffer() {
@@ -1369,7 +1390,9 @@
 
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
-            await this.waitForICE();
+
+            // Wait for ICE candidates - required for copy-paste signaling
+            await this.waitForICECandidates(this.pc);
 
             const answerData = {
               type: 'answer',
@@ -1377,6 +1400,7 @@
             };
 
             const encoded = btoa(JSON.stringify(answerData));
+            console.log('📤 Answer created with ICE candidates embedded in SDP');
 
             // Clear loading first, then set button text
             this.setLoading(false);
@@ -1462,6 +1486,23 @@
             iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
           });
 
+          // Trickle ICE: Send candidates to peer via data channel
+          mediaPc.onicecandidate = (event) => {
+            if (event.candidate) {
+              console.log('🧊 ICE candidate generated (media PC):', event.candidate.type);
+              // Send candidate to remote peer via data channel
+              if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                this.dataChannel.send(JSON.stringify({
+                  type: 'ice-candidate',
+                  candidate: event.candidate.toJSON()
+                }));
+                console.log('📤 Sent ICE candidate to peer');
+              }
+            } else {
+              console.log('✅ ICE candidate gathering complete (media PC)');
+            }
+          };
+
           // Add local stream tracks if available
           if (this.localStream) {
             this.localStream.getTracks().forEach((track) => {
@@ -1482,14 +1523,15 @@
 
           const offer = await this.mediaPc.createOffer();
           await this.mediaPc.setLocalDescription(offer);
-          await this.waitForICE(this.mediaPc);
 
+          // Trickle ICE: Send offer immediately without waiting for candidates
           const mediaOffer = {
             type: 'media-offer',
             sdp: this.mediaPc.localDescription.sdp,
           };
 
           this.dataChannel.send(JSON.stringify(mediaOffer));
+          console.log('📤 Media offer sent with Trickle ICE');
         }
 
         async handleMediaOffer(data) {
@@ -1502,14 +1544,15 @@
 
           const answer = await this.mediaPc.createAnswer();
           await this.mediaPc.setLocalDescription(answer);
-          await this.waitForICE(this.mediaPc);
 
+          // Trickle ICE: Send answer immediately without waiting for candidates
           const mediaAnswer = {
             type: 'media-answer',
             sdp: this.mediaPc.localDescription.sdp,
           };
 
           this.dataChannel.send(JSON.stringify(mediaAnswer));
+          console.log('📤 Media answer sent with Trickle ICE');
         }
 
         async handleMediaAnswer(data) {
@@ -1540,15 +1583,15 @@
         }
 
         /**
-         * Wait for ICE candidate gathering to complete with timeout.
-         * Resolves when gathering is complete or timeout is reached.
-         * @param {RTCPeerConnection} pc - The peer connection to wait for
+         * Wait for ICE candidates to be gathered and embedded in local description.
+         * Required for copy-paste/QR code signaling where SDP is the only exchange mechanism.
+         * @param {RTCPeerConnection} pc - Peer connection to wait for
          * @returns {Promise<void>}
          */
-        waitForICE(pc = this.pc) {
+        waitForICECandidates(pc) {
           return new Promise((resolve) => {
             if (pc.iceGatheringState === 'complete') {
-              console.log('ICE gathering already complete');
+              console.log('✅ ICE gathering already complete');
               resolve();
               return;
             }
@@ -1566,10 +1609,10 @@
 
             pc.addEventListener('icegatheringstatechange', onStateChange);
 
-            // Timeout fallback - proceed even if gathering incomplete
+            // Timeout fallback - proceed even if incomplete
             timeout = setTimeout(() => {
               pc.removeEventListener('icegatheringstatechange', onStateChange);
-              console.log('⏱️ ICE gathering timeout reached, proceeding anyway');
+              console.log('⏱️ ICE gathering timeout - proceeding with available candidates');
               resolve();
             }, CONFIG.ICE_GATHERING_TIMEOUT);
           });
