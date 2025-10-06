@@ -21,7 +21,8 @@
     <title>P2P WebRTC</title>
     <!-- QR Code Libraries -->
     <script type="text/javascript" src="qrcode.js"></script>
-    <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
     <style>
       * {
         margin: 0;
@@ -414,7 +415,7 @@
       /* Toast */
       #toast {
         position: absolute;
-        bottom: 80px;
+        bottom: 200px;
         left: 50%;
         transform: translateX(-50%);
         background: rgba(0, 0, 0, 0.9);
@@ -654,8 +655,40 @@
       <!-- QR Code Buttons -->
       <div id="button-group-container">
         <button id="qr-show-btn" class="secondary-btn hidden">Show QR</button>
-        <button id="qr-paste-btn" class="secondary-btn hidden">Paste QR</button>
+        <button id="qr-paste-btn" class="secondary-btn hidden">
+          Paste QR Answer
+        </button>
       </div>
+
+      <!-- Initial QR Paste Button (for scanning offer QR codes) -->
+      <button
+        id="initial-qr-paste-btn"
+        class="control-btn"
+        style="
+          position: absolute;
+          bottom: 100px;
+          left: 50%;
+          transform: translateX(-50%);
+        "
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+        <span>Paste QR Offer</span>
+      </button>
 
       <div id="bottom-controls">
         <button id="mic-toggle" class="toggle-btn"></button>
@@ -692,7 +725,7 @@
 
     <!-- QR Paste Modal -->
     <div id="qr-paste-modal" class="hidden">
-      <h3>Paste or Upload QR Code</h3>
+      <h3 id="qr-paste-modal-title">Paste or Upload QR Code</h3>
       <div id="qr-paste-area">
         <p>📋 Paste QR image (Ctrl+V / Cmd+V)</p>
         <p>or</p>
@@ -730,6 +763,7 @@
           // UI state
           this.videoMode = 'split'; // 'split', 'local-full', 'remote-full'
           this.buttonState = 'share'; // 'share', 'paste', 'close'
+          this.qrPasteContext = 'offer'; // 'offer' or 'answer' - what type of QR we're expecting
           this.micEnabled = true;
           this.cameraEnabled = true;
           this.controlsVisible = true;
@@ -752,6 +786,9 @@
           // QR Code elements
           this.qrShowBtn = document.getElementById('qr-show-btn');
           this.qrPasteBtn = document.getElementById('qr-paste-btn');
+          this.initialQrPasteBtn = document.getElementById(
+            'initial-qr-paste-btn'
+          );
           this.qrModal = document.getElementById('qr-modal');
           this.qrPasteModal = document.getElementById('qr-paste-modal');
           this.qrDisplay = document.getElementById('qr-display');
@@ -822,7 +859,10 @@
           // QR Code buttons
           this.qrShowBtn.addEventListener('click', () => this.showQRCode());
           this.qrPasteBtn.addEventListener('click', () =>
-            this.showQRPasteModal()
+            this.showQRPasteModal('answer')
+          );
+          this.initialQrPasteBtn.addEventListener('click', () =>
+            this.showQRPasteModal('offer')
           );
 
           // QR Modal actions
@@ -863,8 +903,11 @@
           await this.setupCamera();
 
           if (location.hash) {
+            // Hide initial QR paste button when opening an offer link
+            this.initialQrPasteBtn.classList.add('hidden');
             await this.handleOffer();
           } else {
+            // Initial QR paste button is visible by default
             await this.startAsInitiator();
           }
         }
@@ -1031,9 +1074,12 @@
               ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
-            // Show QR button for offer
+            // Show both QR buttons in share state for QR code workflow
+            // User can show their offer QR AND paste the answer QR
             this.qrShowBtn.classList.remove('hidden');
-            this.qrPasteBtn.classList.add('hidden');
+            this.qrPasteBtn.classList.remove('hidden'); // Show answer paste button
+            // Keep initial QR paste button visible in share state
+            // (user can still paste someone else's offer QR code)
           } else if (state === 'paste') {
             this.topButton.innerHTML =
               ICONS.paste + '<span>Paste Answer Code</span>';
@@ -1042,6 +1088,8 @@
             // Show QR paste button for answer
             this.qrShowBtn.classList.add('hidden');
             this.qrPasteBtn.classList.remove('hidden');
+            // Hide initial QR paste button (we're now waiting for answer, not offer)
+            this.initialQrPasteBtn.classList.add('hidden');
           } else if (state === 'close') {
             this.topButton.innerHTML = ICONS.close;
             this.topButton.classList.remove('primary');
@@ -1049,6 +1097,7 @@
             // Hide QR buttons when connected
             this.qrShowBtn.classList.add('hidden');
             this.qrPasteBtn.classList.add('hidden');
+            this.initialQrPasteBtn.classList.add('hidden');
 
             // Move mic/camera controls to top
             const bottomControls = document.getElementById('bottom-controls');
@@ -1319,16 +1368,28 @@
         }
 
         async handleOffer() {
+          const hashData = location.hash.slice(1);
+          await this.handleOfferFromHash(hashData);
+        }
+
+        async handleOfferFromHash(hashData) {
           try {
             this.setLoading(true, 'Processing offer');
+            console.log('📥 Received offer via QR code');
 
-            const data = JSON.parse(atob(location.hash.slice(1)));
+            const data = JSON.parse(atob(hashData));
 
-            if (data.type !== 'offer') return;
+            if (data.type !== 'offer') {
+              this.showToast('❌ Invalid offer data');
+              this.setLoading(false);
+              return;
+            }
 
+            console.log('✅ Offer data valid, becoming responder');
             this.role = 'responder';
 
             await this.createDataConnection();
+            console.log('📡 Data connection created');
 
             await this.pc.setRemoteDescription({
               type: 'offer',
@@ -1349,7 +1410,7 @@
             // Clear loading first, then set button text
             this.setLoading(false);
 
-            // Store answer code for share button
+            // Store answer code for share button and show "Show QR" button for answer
             this.topButton.dataset.answerCode = encoded;
             this.topButton.innerHTML =
               ICONS.share + '<span>Share Answer Code</span>';
@@ -1358,6 +1419,10 @@
             this.topButton.onclick = async () => {
               await this.shareAnswerCode(encoded);
             };
+
+            // Show QR button for sharing answer code
+            this.qrShowBtn.classList.remove('hidden');
+            this.qrPasteBtn.classList.add('hidden');
 
             this.showToast('Answer code ready to share');
           } catch (err) {
@@ -1528,19 +1593,28 @@
           }
 
           let dataToEncode;
+          let qrType = 'unknown';
 
-          if (this.buttonState === 'share') {
-            // Generate QR for offer
-            dataToEncode = this.topButton.dataset.offerUrl || '';
+          // Smart detection: check what data is available
+          // Priority: answer code > offer URL (in case both exist)
+          if (this.topButton.dataset.answerCode) {
+            // Responder has an answer code to share
+            dataToEncode = this.topButton.dataset.answerCode;
+            qrType = 'answer';
+          } else if (this.topButton.dataset.offerUrl) {
+            // Initiator has an offer URL to share
+            dataToEncode = this.topButton.dataset.offerUrl;
+            qrType = 'offer';
           } else {
-            // For answer code (responder scenario)
-            dataToEncode = this.topButton.dataset.answerCode || '';
+            dataToEncode = '';
           }
 
           console.log(
-            'Generating QR code for:',
+            `Generating QR code for ${qrType}:`,
             dataToEncode.substring(0, 50) + '...'
           );
+          console.log('Data length:', dataToEncode.length);
+          console.log('Data type check:', dataToEncode.startsWith('http') ? 'URL' : 'base64');
 
           if (!dataToEncode) {
             this.showToast('❌ No data to generate QR code');
@@ -1560,9 +1634,9 @@
                 canvas,
                 dataToEncode,
                 {
-                  errorCorrectionLevel: 'M',
-                  width: 400,
-                  margin: 2,
+                  errorCorrectionLevel: 'L', // Low error correction = simpler QR code
+                  width: 600, // Larger size for better scanning
+                  margin: 4,
                   color: {
                     dark: '#000000',
                     light: '#FFFFFF',
@@ -1602,24 +1676,49 @@
               type: 'image/png',
             });
 
-            // Try native share API
-            if (navigator.share && navigator.canShare({ files: [file] })) {
-              await navigator.share({
-                files: [file],
-                title: 'WebRTC Connection',
-                text: 'Scan this QR code to connect',
-              });
-              this.showToast('✅ QR Code shared');
-            } else {
-              // Fallback to clipboard
+            console.log('Attempting to share QR code...');
+            console.log('Navigator.share available:', !!navigator.share);
+
+            // Try native share API with files
+            if (navigator.share) {
+              const canShareFiles =
+                navigator.canShare && navigator.canShare({ files: [file] });
+              console.log('Can share files:', canShareFiles);
+
+              if (canShareFiles) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Scan this QR code to connect via WebRTC',
+                });
+                this.showToast('✅ QR Code shared');
+                return;
+              } else {
+                // Try sharing without files (just trigger share sheet)
+                console.log('Trying share without files...');
+                const dataUrl = this.currentQRData.toDataURL('image/png');
+                await navigator.share({
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Please download the QR code from the browser',
+                });
+                this.showToast('📋 Please download QR code manually');
+                return;
+              }
+            }
+
+            // Fallback to clipboard
+            console.log('Falling back to clipboard...');
+            if (navigator.clipboard && navigator.clipboard.write) {
               await navigator.clipboard.write([
                 new ClipboardItem({ 'image/png': blob }),
               ]);
               this.showToast('✅ QR Code copied to clipboard');
+            } else {
+              this.showToast('❌ Please use Download button');
             }
           } catch (err) {
             console.error('Share failed:', err);
-            this.showToast('❌ Failed to share QR code');
+            this.showToast('❌ Share failed. Use Download button');
           }
         }
 
@@ -1640,7 +1739,14 @@
         }
 
         // QR Code Decoding
-        showQRPasteModal() {
+        showQRPasteModal(context = 'offer') {
+          this.qrPasteContext = context;
+          const titleEl = document.getElementById('qr-paste-modal-title');
+          if (context === 'offer') {
+            titleEl.textContent = 'Paste or Upload Offer QR Code';
+          } else {
+            titleEl.textContent = 'Paste or Upload Answer QR Code';
+          }
           this.qrPasteModal.classList.remove('hidden');
         }
 
@@ -1676,22 +1782,95 @@
             if (decoded) {
               this.qrPasteModal.classList.add('hidden');
 
-              // Check if it's a URL (offer) or base64 code (answer)
-              if (decoded.startsWith('http')) {
-                // It's an offer URL - extract hash
+              // Process based on expected context
+              if (this.qrPasteContext === 'offer') {
+                // Expecting an offer QR code (URL with hash)
+                console.log('📥 Processing offer QR code');
+
+                if (decoded.startsWith('http')) {
+                  try {
+                    const url = new URL(decoded);
+                    if (url.hash) {
+                      const offerData = url.hash.slice(1);
+                      console.log(
+                        '✅ Valid offer URL, hash length:',
+                        offerData.length
+                      );
+
+                      // Hide initial QR paste button
+                      this.initialQrPasteBtn.classList.add('hidden');
+
+                      // Close existing peer connection if we were starting as initiator
+                      if (this.pc && this.role === 'initiator') {
+                        console.log(
+                          '⚠️ Closing initiator connection to become responder'
+                        );
+                        this.pc.close();
+                        this.pc = null;
+                        this.dataChannel = null;
+                      }
+
+                      // Set the hash in location for consistency
+                      location.hash = offerData;
+
+                      // Directly process the offer
+                      await this.handleOfferFromHash(offerData);
+                      this.showToast('✅ Offer received');
+                      return;
+                    }
+                  } catch (e) {
+                    console.error('Invalid offer URL:', e);
+                    this.showToast('❌ Invalid offer QR code');
+                    return;
+                  }
+                } else {
+                  // Try to decode it as base64 offer data directly
+                  try {
+                    const data = JSON.parse(atob(decoded));
+                    if (data.type === 'offer') {
+                      console.log('✅ Valid base64 offer data');
+                      await this.handleOfferFromHash(decoded);
+                      this.showToast('✅ Offer received');
+                      return;
+                    }
+                  } catch (e) {
+                    console.error('Not a valid offer:', e);
+                  }
+                  this.showToast("❌ This doesn't look like an offer QR code");
+                  return;
+                }
+              } else if (this.qrPasteContext === 'answer') {
+                // Expecting an answer QR code (base64 encoded answer)
+                console.log(
+                  '📥 Processing answer QR code, length:',
+                  decoded.length
+                );
+
+                // Answer should be base64, not a URL
+                if (decoded.startsWith('http')) {
+                  this.showToast('❌ This looks like an offer, not an answer');
+                  return;
+                }
+
                 try {
-                  const url = new URL(decoded);
-                  if (url.hash) {
-                    location.href = decoded; // Reload with offer
+                  const data = JSON.parse(atob(decoded));
+                  if (data.type === 'answer') {
+                    console.log('✅ Valid answer data');
+                    this.answerInput.value = decoded;
+                    await this.processAnswer();
+                    this.showToast('✅ Answer received');
+                    return;
+                  } else {
+                    this.showToast(
+                      "❌ This doesn't look like an answer QR code"
+                    );
                     return;
                   }
                 } catch (e) {
-                  console.error('Invalid URL:', e);
+                  console.error('Invalid answer data:', e);
+                  this.showToast('❌ Invalid answer QR code');
+                  return;
                 }
-              } else {
-                // It's an answer code
-                this.answerInput.value = decoded;
-                await this.processAnswer();
               }
 
               this.showToast('✅ QR code decoded');
@@ -1707,34 +1886,92 @@
         async decodeQRFromImage(imageDataURL) {
           return new Promise((resolve) => {
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
               const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+
               canvas.width = img.width;
               canvas.height = img.height;
-
-              const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0);
 
-              const imageData = ctx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height
-              );
+              // Try ZXing first (more powerful for dense QR codes)
+              if (typeof ZXing !== 'undefined') {
+                try {
+                  console.log('Trying ZXing decoder...');
+                  const codeReader = new ZXing.BrowserQRCodeReader();
+                  const result = await codeReader.decodeFromImageElement(img);
 
-              // Use jsQR library to decode
-              const code = jsQR(
-                imageData.data,
-                imageData.width,
-                imageData.height,
-                {
-                  inversionAttempts: 'dontInvert',
+                  if (result && result.text) {
+                    console.log('✅ QR code decoded successfully with ZXing!');
+                    console.log('Data length:', result.text.length);
+                    console.log(
+                      'First 100 chars:',
+                      result.text.substring(0, 100)
+                    );
+                    resolve(result.text);
+                    return;
+                  }
+                } catch (err) {
+                  console.log('ZXing failed:', err.message);
                 }
-              );
+              }
 
-              resolve(code ? code.data : null);
+              // Fallback to jsQR with multiple scales
+              if (typeof jsQR !== 'undefined') {
+                console.log('Trying jsQR decoder...');
+                const scales = [1, 1.5, 2, 3, 4, 0.75, 0.5];
+
+                for (const scale of scales) {
+                  canvas.width = img.width * scale;
+                  canvas.height = img.height * scale;
+
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  ctx.imageSmoothingEnabled = false;
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                  const imageData = ctx.getImageData(
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                  );
+
+                  console.log(
+                    `Trying jsQR at scale ${scale}, size: ${canvas.width}x${canvas.height}`
+                  );
+
+                  const code = jsQR(
+                    imageData.data,
+                    imageData.width,
+                    imageData.height,
+                    {
+                      inversionAttempts: 'attemptBoth',
+                    }
+                  );
+
+                  if (code) {
+                    console.log(
+                      '✅ QR code decoded successfully with jsQR at scale',
+                      scale
+                    );
+                    console.log('Data length:', code.data.length);
+                    console.log(
+                      'First 100 chars:',
+                      code.data.substring(0, 100)
+                    );
+                    resolve(code.data);
+                    return;
+                  }
+                }
+              }
+
+              console.log('❌ No QR code found with any decoder');
+              resolve(null);
             };
-            img.onerror = () => resolve(null);
+            img.onerror = (err) => {
+              console.error('Image load error:', err);
+              resolve(null);
+            };
             img.src = imageDataURL;
           });
         }
