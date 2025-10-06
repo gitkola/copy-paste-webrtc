@@ -653,6 +653,15 @@
 
       <!-- QR Code Buttons -->
       <div id="button-group-container">
+        <button id="qr-share-offer-btn" class="secondary-btn hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          Share QR Offer
+        </button>
         <button id="qr-show-btn" class="secondary-btn hidden">Show QR</button>
         <button id="qr-paste-btn" class="secondary-btn hidden">
           Paste QR Answer
@@ -809,6 +818,7 @@
           this.toast = document.getElementById('toast');
 
           // QR Code elements
+          this.qrShareOfferBtn = document.getElementById('qr-share-offer-btn');
           this.qrShowBtn = document.getElementById('qr-show-btn');
           this.qrPasteBtn = document.getElementById('qr-paste-btn');
           this.initialQrPasteBtn = document.getElementById(
@@ -874,6 +884,9 @@
           });
 
           // QR Code buttons
+          this.qrShareOfferBtn.addEventListener('click', () =>
+            this.shareQROfferDirect()
+          );
           this.qrShowBtn.addEventListener('click', () => this.showQRCode());
           this.qrPasteBtn.addEventListener('click', () =>
             this.showQRPasteModal('answer')
@@ -1125,7 +1138,8 @@
               ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
-            // No QR buttons yet - nothing to show
+            // Show "Share QR Offer" as alternative way to start
+            this.qrShareOfferBtn.classList.remove('hidden');
             this.qrShowBtn.classList.add('hidden');
             this.qrPasteBtn.classList.add('hidden');
             // Initial QR paste button visible (user can paste an offer)
@@ -1135,10 +1149,11 @@
               ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
-            // Show both QR buttons in share state for QR code workflow
-            // User can show their offer QR AND paste the answer QR
+            // Show all QR buttons in share state
+            // User can share QR directly, show QR modal, or paste answer QR
+            this.qrShareOfferBtn.classList.remove('hidden');
             this.qrShowBtn.classList.remove('hidden');
-            this.qrPasteBtn.classList.remove('hidden'); // Show answer paste button
+            this.qrPasteBtn.classList.remove('hidden');
             // Keep initial QR paste button visible in share state
             // (user can still paste someone else's offer QR code)
           } else if (state === 'paste') {
@@ -1147,6 +1162,7 @@
             this.topButton.classList.add('primary');
             this.topButton.classList.remove('close-btn');
             // Show QR paste button for answer
+            this.qrShareOfferBtn.classList.add('hidden');
             this.qrShowBtn.classList.add('hidden');
             this.qrPasteBtn.classList.remove('hidden');
             // Hide initial QR paste button (we're now waiting for answer, not offer)
@@ -1156,6 +1172,7 @@
             this.topButton.classList.remove('primary');
             this.topButton.classList.add('close-btn');
             // Hide QR buttons when connected
+            this.qrShareOfferBtn.classList.add('hidden');
             this.qrShowBtn.classList.add('hidden');
             this.qrPasteBtn.classList.add('hidden');
             this.initialQrPasteBtn.classList.add('hidden');
@@ -1651,6 +1668,101 @@
               resolve();
             }, CONFIG.ICE_GATHERING_TIMEOUT);
           });
+        }
+
+        /**
+         * Share QR code for offer directly without showing modal.
+         * Creates connection if needed, generates QR, and shares image immediately.
+         * @returns {Promise<void>}
+         */
+        async shareQROfferDirect() {
+          try {
+            // If no connection yet, create it first (lazy initialization)
+            if (!this.pc && this.buttonState === 'ready') {
+              console.log('👤 User clicked Share QR Offer - creating connection...');
+              this.setLoading(true, 'Creating offer');
+              await this.startAsInitiator(false); // Don't auto-share URL
+            }
+
+            // Get offer URL
+            const offerUrl = this.topButton.dataset.offerUrl;
+            if (!offerUrl) {
+              this.showToast('❌ No offer available');
+              return;
+            }
+
+            // Check if QRCode library is loaded
+            if (typeof QRCode === 'undefined') {
+              this.handleError('❌ QR Code library not loaded', 'QRCode library unavailable');
+              return;
+            }
+
+            this.showToast('🔄 Generating QR code...');
+
+            // Generate QR code on canvas
+            const canvas = document.createElement('canvas');
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                offerUrl,
+                {
+                  errorCorrectionLevel: CONFIG.QR_ERROR_CORRECTION,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                }
+              );
+            });
+
+            // Convert canvas to blob
+            const blob = await new Promise((resolve) => {
+              canvas.toBlob(resolve, 'image/png');
+            });
+
+            const file = new File([blob], 'webrtc-offer-qr.png', {
+              type: 'image/png',
+            });
+
+            console.log('📤 Attempting to share QR code image...');
+
+            // Try native share API with files
+            if (navigator.share) {
+              const canShareFiles =
+                navigator.canShare && navigator.canShare({ files: [file] });
+
+              if (canShareFiles) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Scan this QR code to connect',
+                });
+                this.showToast('✅ QR Code shared');
+                this.setButtonState('paste'); // Move to waiting for answer
+                return;
+              }
+            }
+
+            // Fallback to clipboard
+            console.log('Falling back to clipboard...');
+            if (navigator.clipboard && navigator.clipboard.write) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob }),
+              ]);
+              this.showToast('✅ QR Code copied to clipboard');
+              this.setButtonState('paste');
+            } else {
+              this.showToast('❌ Share not supported. Use "Show QR" button');
+            }
+          } catch (err) {
+            this.handleError('❌ Failed to share QR code', err);
+          }
         }
 
         /**
