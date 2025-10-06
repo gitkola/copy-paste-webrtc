@@ -788,7 +788,7 @@
 
           // UI state
           this.videoMode = 'split'; // 'split', 'local-full', 'remote-full'
-          this.buttonState = 'share'; // 'share', 'paste', 'close'
+          this.buttonState = 'ready'; // 'ready', 'share', 'paste', 'close'
           this.qrPasteContext = 'offer'; // 'offer' or 'answer' - what type of QR we're expecting
           this.micEnabled = true;
           this.cameraEnabled = true;
@@ -920,12 +920,14 @@
           await this.setupCamera();
 
           if (location.hash) {
-            // Hide initial QR paste button when opening an offer link
+            // Opening an offer link is explicit user action - handle offer
             this.initialQrPasteBtn.classList.add('hidden');
             await this.handleOffer();
           } else {
-            // Initial QR paste button is visible by default
-            await this.startAsInitiator();
+            // Wait for user to explicitly choose: "Share Offer" or "Paste QR Offer"
+            // Don't create peer connection yet - lazy initialization
+            this.setButtonState('ready');
+            console.log('⏸️ Waiting for user action (no peer connection created yet)');
           }
         }
 
@@ -946,10 +948,24 @@
           }
         }
 
-        async startAsInitiator() {
+        /**
+         * Start as initiator: create peer connection and generate offer.
+         * Called when user explicitly clicks "Share Offer Link" button.
+         * @param {boolean} autoShare - Automatically share offer after generation
+         * @returns {Promise<void>}
+         */
+        async startAsInitiator(autoShare = true) {
           this.role = 'initiator';
+          console.log('🚀 Creating peer connection as initiator...');
+
           await this.createDataConnection();
           await this.generateOffer();
+
+          // Auto-share if requested (when user clicked "Share Offer Link")
+          if (autoShare && this.topButton.dataset.offerUrl) {
+            console.log('📤 Auto-sharing offer link...');
+            await this.copyOfferLink();
+          }
         }
 
         // Video mode toggling
@@ -1002,7 +1018,12 @@
             return;
           }
 
-          if (this.buttonState === 'share') {
+          if (this.buttonState === 'ready') {
+            // User explicitly wants to create and share an offer
+            // Lazy initialization - create peer connection now
+            console.log('👤 User clicked Share - creating offer...');
+            await this.startAsInitiator();
+          } else if (this.buttonState === 'share') {
             this.copyOfferLink();
           } else if (this.buttonState === 'paste') {
             await this.pasteAndConnect();
@@ -1033,7 +1054,10 @@
 
         async copyOfferLink() {
           const url = this.topButton.dataset.offerUrl;
-          if (!url) return;
+          if (!url) {
+            console.warn('No offer URL available to share');
+            return;
+          }
 
           // Try native Share API first
           if (navigator.share) {
@@ -1095,7 +1119,18 @@
 
         setButtonState(state) {
           this.buttonState = state;
-          if (state === 'share') {
+          if (state === 'ready') {
+            // Initial state - no peer connection created yet
+            this.topButton.innerHTML =
+              ICONS.share + '<span>Share Offer Link</span>';
+            this.topButton.classList.add('primary');
+            this.topButton.classList.remove('close-btn');
+            // No QR buttons yet - nothing to show
+            this.qrShowBtn.classList.add('hidden');
+            this.qrPasteBtn.classList.add('hidden');
+            // Initial QR paste button visible (user can paste an offer)
+            this.initialQrPasteBtn.classList.remove('hidden');
+          } else if (state === 'share') {
             this.topButton.innerHTML =
               ICONS.share + '<span>Share Offer Link</span>';
             this.topButton.classList.add('primary');
