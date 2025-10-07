@@ -27,6 +27,7 @@ export default {
   // Flags
   isProcessing: false,
   isLoading: false,
+  loadingMessage: null,
 
   // Error handling
   error: null,

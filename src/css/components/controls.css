@@ -40,6 +40,7 @@
 }
 
 .control-btn:disabled,
+.control-btn.processing,
 .control-btn.loading {
   opacity: 0.6;
   cursor: not-allowed;
@@ -146,47 +147,4 @@
   pointer-events: auto;
 }
 
-/* Secondary buttons */
-.button-group {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.secondary-btn {
-  pointer-events: auto;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  touch-action: manipulation;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.secondary-btn:active {
-  transform: scale(0.95);
-  background: rgba(0, 0, 0, 0.9);
-}
-
-.secondary-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-#button-group-container {
-  position: absolute;
-  top: 90px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  pointer-events: none;
-}
+/* Secondary buttons - Removed (functionality integrated into main buttons) */

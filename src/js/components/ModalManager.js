@@ -17,6 +17,9 @@ export default class ModalManager {
     // Get modal elements
     this.pasteModal = document.getElementById('paste-modal');
     this.answerInput = document.getElementById('answer-input');
+    this.pasteModalPasteQR = document.getElementById('paste-modal-paste-qr');
+    this.pasteModalUploadQR = document.getElementById('paste-modal-upload-qr');
+    this.pasteModalFileInput = document.getElementById('paste-modal-file-input');
     this.qrModal = document.getElementById('qr-modal');
     this.qrDisplay = document.getElementById('qr-display');
     this.qrPasteModal = document.getElementById('qr-paste-modal');
@@ -42,6 +45,33 @@ export default class ModalManager {
 
     this.answerInput.addEventListener('paste', () => {
       setTimeout(() => this.handleAnswerSubmit(), 100);
+    });
+
+    // Paste Modal - Paste QR from clipboard
+    if (this.pasteModalPasteQR) {
+      this.pasteModalPasteQR.addEventListener('click', async () => {
+        await this.handlePasteModalClipboardQR();
+      });
+    }
+
+    // Paste Modal - Upload QR file
+    if (this.pasteModalUploadQR) {
+      this.pasteModalUploadQR.addEventListener('click', () => {
+        this.pasteModalFileInput.click();
+      });
+    }
+
+    if (this.pasteModalFileInput) {
+      this.pasteModalFileInput.addEventListener('change', async (e) => {
+        await this.handlePasteModalQRUpload(e);
+      });
+    }
+
+    // Global paste listener for paste modal
+    document.addEventListener('paste', async (e) => {
+      if (!this.pasteModal.classList.contains('hidden')) {
+        await this.handlePasteModalGlobalPaste(e);
+      }
     });
 
     // QR Modal (display)
@@ -109,6 +139,101 @@ export default class ModalManager {
     } catch (error) {
       logger.error('Answer submission failed:', error);
       this.toast.show(error.message);
+    }
+  }
+
+  /**
+   * Handle QR code upload from paste modal
+   */
+  async handlePasteModalQRUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      this.hidePasteModal();
+      this.toast.show('🔍 Decoding QR code...');
+
+      // Process QR code as answer
+      const message = await this.ui.handleQRCodeUpload(file);
+      this.toast.show(message);
+    } catch (error) {
+      logger.error('QR upload failed:', error);
+      this.toast.show(error.message);
+      // Re-show modal on error
+      this.showPasteModal();
+    } finally {
+      // Reset file input
+      this.pasteModalFileInput.value = '';
+    }
+  }
+
+  /**
+   * Handle paste QR from clipboard button click
+   */
+  async handlePasteModalClipboardQR() {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.read) {
+        this.toast.show('❌ Clipboard API not available. Use Ctrl+V or Upload instead.');
+        return;
+      }
+
+      this.toast.show('📋 Reading from clipboard...');
+
+      const clipboardItems = await navigator.clipboard.read();
+
+      for (const item of clipboardItems) {
+        const imageTypes = item.types.filter(type => type.startsWith('image/'));
+
+        if (imageTypes.length > 0) {
+          const blob = await item.getType(imageTypes[0]);
+          await this.processPasteModalQRBlob(blob);
+          return;
+        }
+      }
+
+      this.toast.show('❌ No image found in clipboard. Copy a QR code image first.');
+    } catch (error) {
+      if (error.name === 'NotAllowedError') {
+        this.toast.show('❌ Clipboard access denied. Use Ctrl+V or Upload instead.');
+      } else {
+        logger.error('Clipboard read failed:', error);
+        this.toast.show('❌ Failed to read clipboard');
+      }
+    }
+  }
+
+  /**
+   * Handle global paste event in paste modal
+   */
+  async handlePasteModalGlobalPaste(event) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        event.preventDefault();
+        const blob = item.getAsFile();
+        await this.processPasteModalQRBlob(blob);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Process QR code blob from paste modal
+   */
+  async processPasteModalQRBlob(blob) {
+    try {
+      this.hidePasteModal();
+      this.toast.show('🔍 Decoding QR code...');
+
+      const message = await this.ui.handleQRCodeUpload(blob);
+      this.toast.show(message);
+    } catch (error) {
+      logger.error('QR processing failed:', error);
+      this.toast.show(error.message);
+      // Re-show modal on error
+      this.showPasteModal();
     }
   }
 

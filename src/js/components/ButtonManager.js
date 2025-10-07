@@ -197,10 +197,15 @@ export default class ButtonManager {
       if (change.key === 'buttonState') {
         this.updateButtonVisibility();
       }
+
+      if (change.key === 'isProcessing') {
+        this.updateButtonsDisabledState(change.value);
+      }
     });
 
     // Initial update
     this.updateButtonVisibility();
+    this.updateButtonsDisabledState(store.state.isProcessing);
   }
 
   /**
@@ -213,6 +218,17 @@ export default class ButtonManager {
       const visible = this.ui.isButtonVisible(buttonId);
 
       buttonElement.classList.toggle('hidden', !visible);
+    });
+  }
+
+  /**
+   * Update buttons disabled state
+   */
+  updateButtonsDisabledState(isProcessing) {
+    Object.keys(this.buttons).forEach((key) => {
+      const buttonElement = this.buttons[key];
+      buttonElement.disabled = isProcessing;
+      buttonElement.classList.toggle('processing', isProcessing);
     });
   }
 }

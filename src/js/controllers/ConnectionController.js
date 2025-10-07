@@ -32,6 +32,8 @@ export default class ConnectionController {
     // Data connection established
     this.webrtc.on('data-connection-established', async () => {
       logger.info('Data connection ready, starting media negotiation...');
+      store.commit('setLoading', true);
+      store.commit('setLoadingMessage', '📡 Connecting to peer...');
       await delay(CONFIG.MEDIA_NEGOTIATION_DELAY);
       await this.startMediaNegotiation();
     });
@@ -45,6 +47,7 @@ export default class ConnectionController {
     this.webrtc.on('media-offer-received', async ({ offerData }) => {
       const localStream = store.state.localStream;
       if (localStream) {
+        store.commit('setLoadingMessage', '🎥 Establishing video connection...');
         await this.webrtc.processMediaOffer(offerData, localStream);
       }
     });
@@ -52,17 +55,25 @@ export default class ConnectionController {
     // Media connection established
     this.webrtc.on('media-connection-established', () => {
       logger.info('Media connection established');
+      store.commit('setLoadingMessage', '✅ Almost there...');
     });
 
     // Remote track received
     this.webrtc.on('remote-track', ({ streams }) => {
       logger.info('Remote stream received');
       store.commit('setRemoteStream', streams[0]);
+      store.commit('setLoadingMessage', '✅ Connected!');
+      setTimeout(() => {
+        store.commit('setLoading', false);
+        store.commit('setLoadingMessage', null);
+      }, 500);
       store.dispatch('connectEstablished');
     });
 
     // Connection failed
     this.webrtc.on('connection-failed', () => {
+      store.commit('setLoading', false);
+      store.commit('setLoadingMessage', null);
       store.dispatch('connectionFailed', ERROR_MESSAGES.CONNECTION_FAILED);
     });
   }
@@ -100,6 +111,7 @@ export default class ConnectionController {
     try {
       store.commit('setProcessing', true);
       store.commit('setLoading', true);
+      store.commit('setLoadingMessage', '🔄 Creating offer...');
       logger.info('👤 Starting as initiator...');
 
       // Set role and create data connection
@@ -109,9 +121,11 @@ export default class ConnectionController {
       await this.webrtc.createDataConnection();
 
       // Create offer
+      store.commit('setLoadingMessage', '🧊 Gathering ICE candidates...');
       const offerDescription = await this.webrtc.createOffer();
 
       // Create shareable URL
+      store.commit('setLoadingMessage', '📤 Preparing offer...');
       const offerUrl = this.signaling.createOfferUrl(offerDescription);
       store.commit('setOfferUrl', offerUrl);
 
@@ -120,6 +134,7 @@ export default class ConnectionController {
 
       store.commit('setLoading', false);
       store.commit('setProcessing', false);
+      store.commit('setLoadingMessage', null);
       logger.info('✅ Offer created and ready to share');
     } catch (error) {
       logger.error('Failed to start as initiator:', error);
@@ -137,6 +152,7 @@ export default class ConnectionController {
     try {
       store.commit('setProcessing', true);
       store.commit('setLoading', true);
+      store.commit('setLoadingMessage', '📥 Processing offer...');
       logger.info('📥 Processing offer from URL...');
 
       // Parse offer from hash
@@ -152,12 +168,14 @@ export default class ConnectionController {
       await this.webrtc.createDataConnection();
 
       // Create answer
+      store.commit('setLoadingMessage', '🧊 Gathering ICE candidates...');
       const answerDescription = await this.webrtc.createAnswer({
         type: 'offer',
         sdp: offerData.sdp,
       });
 
       // Create answer code
+      store.commit('setLoadingMessage', '📤 Preparing answer...');
       const answerCode = this.signaling.createAnswerCode(answerDescription);
       store.commit('setAnswerCode', answerCode);
 
@@ -166,6 +184,7 @@ export default class ConnectionController {
 
       store.commit('setLoading', false);
       store.commit('setProcessing', false);
+      store.commit('setLoadingMessage', null);
       logger.info('✅ Answer ready to share');
     } catch (error) {
       logger.error('Failed to process offer:', error);
@@ -185,10 +204,12 @@ export default class ConnectionController {
     try {
       store.commit('setProcessing', true);
       store.commit('setLoading', true);
+      store.commit('setLoadingMessage', '📥 Processing answer...');
       logger.info('📥 Processing answer...');
 
       const answerData = this.signaling.parseAnswer(answerCode);
 
+      store.commit('setLoadingMessage', '🔗 Establishing connection...');
       await this.webrtc.setRemoteAnswer({
         type: 'answer',
         sdp: answerData.sdp,
@@ -196,6 +217,7 @@ export default class ConnectionController {
 
       store.commit('setLoading', false);
       store.commit('setProcessing', false);
+      store.commit('setLoadingMessage', null);
       logger.info('✅ Answer processed, waiting for connection...');
     } catch (error) {
       logger.error('Failed to process answer:', error);

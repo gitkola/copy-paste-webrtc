@@ -14,7 +14,7 @@ import Controls from './components/Controls.js';
 import ButtonManager from './components/ButtonManager.js';
 import ModalManager from './components/ModalManager.js';
 import VideoGrid from './components/VideoGrid.js';
-import SecondaryButtons from './components/SecondaryButtons.js';
+import LoadingOverlay from './components/LoadingOverlay.js';
 import store from './store/index.js';
 import logger from './lib/Logger.js';
 
@@ -36,7 +36,7 @@ class App {
     this.buttonManager = new ButtonManager(this.uiController, this.toast);
     this.modalManager = new ModalManager(this.uiController, this.toast);
     this.videoGrid = new VideoGrid(this.mediaController);
-    this.secondaryButtons = new SecondaryButtons(this.modalManager);
+    this.loadingOverlay = new LoadingOverlay();
 
     // Wire modal manager to UI controller (for opening modals)
     this.uiController.setModalManager(this.modalManager);

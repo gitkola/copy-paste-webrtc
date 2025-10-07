@@ -61,6 +61,10 @@ export default {
     state.isLoading = isLoading;
   },
 
+  setLoadingMessage(state, message) {
+    state.loadingMessage = message;
+  },
+
   // Error handling
   setError(state, error) {
     state.error = error;

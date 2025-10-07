@@ -83,6 +83,8 @@ export default class UIController {
    * Handle "Paste Answer" button click
    */
   async handlePasteAnswerClick() {
+    // Set context for QR uploads
+    store.commit('setQRPasteContext', 'answer');
     if (this.modalManager) {
       this.modalManager.openPasteAnswerModal();
     }
