@@ -1,0 +1,121 @@
+/**
+ * Video Grid - Video display layout and modes
+ */
+
+/* Video Grid View Layer - Bottom */
+#video-grid-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #0a0a0a;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Default: Local video full screen (before connection) */
+#local-video {
+  width: 100%;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+#remote-video {
+  width: 100%;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+/* 50/50 Split Mode - vertical (portrait) */
+#video-grid-view.mode-split-v {
+  flex-direction: column;
+}
+
+#video-grid-view.mode-split-v #local-video,
+#video-grid-view.mode-split-v #remote-video:not(.hidden) {
+  width: 100%;
+  height: 50%;
+}
+
+/* 50/50 Split Mode - horizontal (landscape) */
+#video-grid-view.mode-split-h {
+  flex-direction: row;
+}
+
+#video-grid-view.mode-split-h #local-video,
+#video-grid-view.mode-split-h #remote-video:not(.hidden) {
+  width: 50%;
+  height: 100%;
+}
+
+/* Full-screen Mode */
+#video-grid-view.mode-full {
+  position: relative;
+}
+
+#video-grid-view.mode-full video.full {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+#video-grid-view.mode-full video.thumbnail {
+  width: 120px;
+  height: 160px;
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  z-index: 2;
+  border-radius: 12px;
+}
+
+#video-grid-view.mode-full #local-video.thumbnail {
+  border-color: #0088ff;
+}
+
+video {
+  background: #1a1a1a;
+  object-fit: cover;
+  cursor: pointer;
+  touch-action: none;
+}
+
+#local-video {
+  transform: scaleX(-1);
+  border: 3px solid #0088ff;
+}
+
+/* Disable pointer events on local video before connection */
+#local-video.no-click {
+  pointer-events: none;
+}
+
+video.hidden {
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Landscape mode adjustments */
+@media (orientation: landscape) {
+  #video-grid-view.mode-split-v {
+    flex-direction: row;
+  }
+
+  #video-grid-view.mode-split-v #local-video,
+  #video-grid-view.mode-split-v #remote-video:not(.hidden) {
+    width: 50%;
+    height: 100%;
+  }
+
+  #video-grid-view.mode-full video.thumbnail {
+    width: 160px;
+    height: 120px;
+  }
+}

@@ -1,0 +1,150 @@
+/**
+ * Controls - Top panel and buttons
+ */
+
+/* Controls Overlay Layer - Top */
+#controls-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.control-btn {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  touch-action: manipulation;
+}
+
+.control-btn:active {
+  transform: scale(0.95);
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.control-btn.primary {
+  background: linear-gradient(135deg, #00ff88, #00cc66);
+  color: #000;
+  border-color: transparent;
+}
+
+.control-btn:disabled,
+.control-btn.processing,
+.control-btn.loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.control-btn svg {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.control-btn.loading::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Top Control Panel */
+#top-control-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: rgba(100, 100, 100, 0.85);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 0 20px;
+  z-index: 15;
+  pointer-events: auto;
+}
+
+.panel-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  touch-action: manipulation;
+}
+
+.panel-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.panel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.panel-btn:active {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.panel-btn.off {
+  opacity: 0.5;
+}
+
+.close-btn-panel {
+  background: rgba(255, 0, 0, 0.9) !important;
+  margin-left: auto;
+}
+
+.close-btn-panel:hover {
+  background: rgba(255, 0, 0, 1) !important;
+}
+
+#reload-btn {
+  margin-left: auto;
+}
+
+/* Button container for flexible layouts */
+#main-button-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 12px;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+#main-button-container > button {
+  pointer-events: auto;
+}
+
+/* Secondary buttons - Removed (functionality integrated into main buttons) */
