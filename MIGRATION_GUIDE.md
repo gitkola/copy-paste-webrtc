@@ -3,6 +3,7 @@
 ## Quick Start
 
 ### Before (Old Structure)
+
 ```bash
 # Open index.html directly
 open index.html
@@ -13,6 +14,7 @@ python3 -m http.server 8000
 ```
 
 ### After (New Structure)
+
 ```bash
 # Serve with Python
 python3 -m http.server 8000
@@ -29,10 +31,12 @@ npm run dev
 ### File Organization
 
 **Before:**
+
 - `index.html` (2,406 lines) - Everything in one file
 - `qrcode.js` - External library
 
 **After:**
+
 - `src/index.html` (200 lines) - HTML shell only
 - `src/js/` - 24 JavaScript modules
 - `src/css/` - 6 CSS modules
@@ -41,6 +45,7 @@ npm run dev
 ### Architecture
 
 #### Before: Monolithic
+
 ```
 ┌─────────────────────────────────┐
 │                                 │
@@ -58,6 +63,7 @@ npm run dev
 ```
 
 #### After: Layered Modules
+
 ```
 ┌───────────────────────────────────────────┐
 │  Presentation Layer (Components)           │
@@ -80,6 +86,7 @@ npm run dev
 ## Preserved Features
 
 ✅ All functionality works exactly the same:
+
 - Copy-paste offer/answer flow
 - QR code generation and scanning
 - One-click QR share
@@ -93,6 +100,7 @@ npm run dev
 ## New Capabilities
 
 ✨ **Improved Developer Experience:**
+
 - Modular code organization
 - Centralized logging with levels
 - Reactive state management
@@ -107,6 +115,7 @@ npm run dev
 ## Developer Workflow Changes
 
 ### Old: Edit One File
+
 ```javascript
 // Edit index.html
 // Find line 1234 in a 2,406-line file
@@ -115,6 +124,7 @@ npm run dev
 ```
 
 ### New: Edit Focused Modules
+
 ```javascript
 // Want to change QR behavior?
 // Edit src/js/services/QRCodeService.js (300 lines)
@@ -131,11 +141,13 @@ npm run dev
 ### 1. Change Video Layout Behavior
 
 **Before:**
+
 ```javascript
 // Edit index.html, find handleVideoClick() around line 1865
 ```
 
 **After:**
+
 ```javascript
 // Edit src/js/controllers/MediaController.js
 updateVideoLayout() {
@@ -146,6 +158,7 @@ updateVideoLayout() {
 ### 2. Add New Button
 
 **Before:**
+
 ```javascript
 // Edit HTML section
 // Edit CSS section
@@ -154,6 +167,7 @@ updateVideoLayout() {
 ```
 
 **After:**
+
 ```javascript
 // 1. Add HTML in src/index.html
 // 2. Add styles in src/css/components/controls.css
@@ -164,11 +178,13 @@ updateVideoLayout() {
 ### 3. Change WebRTC Configuration
 
 **Before:**
+
 ```javascript
 // Search for CONFIG object in index.html
 ```
 
 **After:**
+
 ```javascript
 // Edit src/js/config/webrtc.js
 export const CONFIG = {
@@ -180,11 +196,13 @@ export const CONFIG = {
 ### 4. Debug Connection Issues
 
 **Before:**
+
 ```javascript
 // Add console.log in various places
 ```
 
 **After:**
+
 ```javascript
 // Use centralized logger
 import logger from './lib/Logger.js';
@@ -198,6 +216,7 @@ window.__DEBUG__.logger.setLevel('DEBUG');
 ## State Management
 
 ### Before: Direct Property Access
+
 ```javascript
 class P2PWebRTC {
   constructor() {
@@ -209,6 +228,7 @@ class P2PWebRTC {
 ```
 
 ### After: Centralized Reactive Store
+
 ```javascript
 // State definition
 import store from './store/index.js';
@@ -230,11 +250,13 @@ store.subscribe((state, change) => {
 ## Event Handling
 
 ### Before: Direct Method Calls
+
 ```javascript
 this.handleOfferFromHash(); // Tight coupling
 ```
 
 ### After: Event-Driven
+
 ```javascript
 // Service emits event
 this.webrtc.emit('remote-track', { streams });
@@ -248,12 +270,14 @@ this.webrtc.on('remote-track', ({ streams }) => {
 ## Testing
 
 ### Before: Hard to Test
+
 ```javascript
 // Entire app in one class
 // No way to test individual pieces
 ```
 
 ### After: Unit Testable
+
 ```javascript
 // Test individual services
 import MediaService from './services/MediaService.js';
@@ -277,12 +301,14 @@ test('ConnectionController creates offer', async () => {
 ## Deployment
 
 ### Before
+
 ```bash
 # Copy index.html + qrcode.js
 # Deploy to static host
 ```
 
 ### After
+
 ```bash
 # Copy entire src/ directory + qrcode.js
 # Deploy to static host
@@ -296,6 +322,7 @@ npx vite build
 ## Debugging Tips
 
 ### 1. Check Module Loading
+
 ```javascript
 // Open browser console
 // Look for "📦 Modules loaded" message
@@ -306,9 +333,10 @@ npx vite build
 ```
 
 ### 2. State Inspection
+
 ```javascript
 // In browser console
-window.__DEBUG__.store.state
+window.__DEBUG__.store.state;
 // See entire application state
 
 window.__DEBUG__.store.subscribe((state, change) => {
@@ -318,12 +346,14 @@ window.__DEBUG__.store.subscribe((state, change) => {
 ```
 
 ### 3. Enable Debug Logging
+
 ```javascript
 window.__DEBUG__.logger.setLevel('DEBUG');
 // Now see all debug messages in console
 ```
 
 ### 4. Check Service Communication
+
 ```javascript
 // Services emit events
 // Check EventEmitter connections
@@ -332,17 +362,20 @@ window.__DEBUG__.logger.setLevel('DEBUG');
 ## Performance
 
 ### Bundle Size
+
 - **Before**: ~85KB (HTML with embedded CSS/JS)
 - **After**: ~90KB total (HTML + CSS + JS modules)
 - **Difference**: +5KB (~6% increase)
 
 ### Load Time
+
 - **Before**: Single HTTP request for index.html
 - **After**: Multiple HTTP requests for modules (but parallel)
 - **HTTP/2**: No difference (multiplexing)
 - **HTTP/1.1**: Slightly slower initial load (~50-100ms)
 
 ### Runtime Performance
+
 - **Identical**: Same JavaScript execution
 - **Memory**: Slightly better (modules can be GC'd individually)
 
@@ -391,6 +424,7 @@ A: Negligible. Modern browsers handle ES6 modules efficiently.
 ## Support
 
 For issues or questions:
+
 1. Check [ARCHITECTURE.md](ARCHITECTURE.md) for design patterns
 2. Check [CLAUDE.md](CLAUDE.md) for WebRTC specifics
 3. Use browser console debugging tools

@@ -7,6 +7,7 @@ This P2P WebRTC application has been refactored from a **single 2,406-line index
 ## Architecture Layers
 
 ### 1. **Presentation Layer** (`src/js/components/`)
+
 UI components with no business logic - pure view layer.
 
 - `Toast.js` - Notification system
@@ -17,6 +18,7 @@ UI components with no business logic - pure view layer.
 - `SecondaryButtons.js` - Secondary actions (Show QR, Paste QR)
 
 ### 2. **Business Logic Layer** (`src/js/controllers/`)
+
 Orchestrators that coordinate services, state, and UI.
 
 - `ConnectionController.js` - WebRTC connection orchestration
@@ -24,6 +26,7 @@ Orchestrators that coordinate services, state, and UI.
 - `MediaController.js` - Video layout and display logic
 
 ### 3. **Service Layer** (`src/js/services/`)
+
 Core business services with single responsibilities.
 
 - `WebRTCService.js` - Dual peer connection management (data + media)
@@ -32,6 +35,7 @@ Core business services with single responsibilities.
 - `QRCodeService.js` - QR generation/decoding with adaptive error correction
 
 ### 4. **State Management** (`src/js/store/`)
+
 Centralized reactive state with Proxy-based reactivity.
 
 - `Store.js` - Reactive store class (Vuex/Redux pattern)
@@ -41,18 +45,22 @@ Centralized reactive state with Proxy-based reactivity.
 - `index.js` - Singleton store instance
 
 ### 5. **Infrastructure** (`src/js/lib/`, `src/js/config/`)
+
 Utilities and configuration.
 
 **Libraries:**
+
 - `EventEmitter.js` - Observer pattern for event-driven architecture
 - `Logger.js` - Centralized logging with levels
 - `helpers.js` - Pure utility functions
 
 **Configuration:**
+
 - `webrtc.js` - WebRTC settings, ICE servers, timeouts
 - `constants.js` - Enums, error messages, UI states, icons
 
 ### 6. **Styles** (`src/css/`)
+
 Modular CSS following BEM-inspired naming.
 
 - `base.css` - Reset and global styles
@@ -124,6 +132,7 @@ copy-paste-webrtc/
 ## Key Architectural Patterns
 
 ### 1. **Dependency Injection**
+
 Manual DI via constructor parameters - no framework needed.
 
 ```javascript
@@ -135,6 +144,7 @@ const buttonManager = new ButtonManager(uiController, toast);
 ```
 
 ### 2. **Event-Driven Architecture**
+
 Services emit events, controllers handle them - loose coupling.
 
 ```javascript
@@ -145,6 +155,7 @@ this.webrtc.on('remote-track', ({ streams }) => {
 ```
 
 ### 3. **Reactive State Management**
+
 Proxy-based reactivity for automatic UI updates.
 
 ```javascript
@@ -156,6 +167,7 @@ store.subscribe((state, change) => {
 ```
 
 ### 4. **Service Layer Pattern**
+
 Each service has a single responsibility with clear interfaces.
 
 - **WebRTCService**: Peer connections only
@@ -164,6 +176,7 @@ Each service has a single responsibility with clear interfaces.
 - **QRCodeService**: QR operations only
 
 ### 5. **Controller Orchestration**
+
 Controllers coordinate between services and UI - no direct coupling.
 
 ```javascript
@@ -228,15 +241,18 @@ All original functionality preserved:
 ## Migration Notes
 
 ### Breaking Changes
+
 None - all functionality preserved.
 
 ### New Features
+
 - **Centralized Logging**: All console.log replaced with logger.info/debug/warn/error
 - **State Subscriptions**: Components auto-update on state changes
 - **Error Boundaries**: Global error handlers in place
 - **Debug Access**: `window.__DEBUG__` for console debugging
 
 ### Performance
+
 - **Same as before**: No build overhead, direct ES6 module loading
 - **Lazy Loading**: Modules loaded on demand by browser
 - **Minimal Bundle**: ~50KB total JS (unminified)
@@ -293,10 +309,10 @@ this.chatPanel = new ChatPanel(this.chatController);
 
 ```javascript
 // Access store
-window.__DEBUG__.store.state
+window.__DEBUG__.store.state;
 
 // Access logger
-window.__DEBUG__.logger.setLevel('DEBUG')
+window.__DEBUG__.logger.setLevel('DEBUG');
 
 // Subscribe to all state changes
 window.__DEBUG__.store.subscribe((state, change) => {
@@ -331,16 +347,16 @@ Possible additions with minimal changes:
 
 ## Comparison
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Files | 1 | 30 |
-| Lines/File | 2,406 | ~100 avg |
-| Layers | 0 | 6 |
-| Testable Modules | 0 | 24 |
-| Coupling | High | Low |
-| Cohesion | Low | High |
-| Reusability | None | High |
-| Maintainability | Low | High |
+| Metric           | Before | After    |
+| ---------------- | ------ | -------- |
+| Files            | 1      | 30       |
+| Lines/File       | 2,406  | ~100 avg |
+| Layers           | 0      | 6        |
+| Testable Modules | 0      | 24       |
+| Coupling         | High   | Low      |
+| Cohesion         | Low    | High     |
+| Reusability      | None   | High     |
+| Maintainability  | Low    | High     |
 
 ---
 

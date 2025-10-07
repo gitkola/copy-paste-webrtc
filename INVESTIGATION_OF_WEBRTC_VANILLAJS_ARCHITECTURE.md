@@ -56,9 +56,9 @@ export default class ConnectionFactory {
   createConnection(peerId, options = {}) {
     const config = {
       iceServers: this.iceServers,
-      ...options
+      ...options,
     };
-    
+
     return new RTCPeerConnection(config);
   }
 
@@ -66,7 +66,7 @@ export default class ConnectionFactory {
     return connection.createDataChannel(label, {
       ordered: true,
       maxRetransmits: 3,
-      ...options
+      ...options,
     });
   }
 }
@@ -79,7 +79,7 @@ Module pattern забезпечує інкапсуляцію та приватн
 const Logger = (() => {
   let instance;
   const logLevels = { ERROR: 0, WARN: 1, INFO: 2, DEBUG: 3 };
-  
+
   class LoggerClass {
     constructor() {
       if (instance) return instance;
@@ -97,9 +97,15 @@ const Logger = (() => {
       }
     }
 
-    error(message, ...args) { this.log('ERROR', message, ...args); }
-    warn(message, ...args) { this.log('WARN', message, ...args); }
-    info(message, ...args) { this.log('INFO', message, ...args); }
+    error(message, ...args) {
+      this.log('ERROR', message, ...args);
+    }
+    warn(message, ...args) {
+      this.log('WARN', message, ...args);
+    }
+    info(message, ...args) {
+      this.log('INFO', message, ...args);
+    }
   }
 
   return new LoggerClass();
@@ -128,7 +134,7 @@ export default class VideoGrid extends Component {
 
   render() {
     const { remoteStreams } = store.state;
-    
+
     // Remove disconnected peers
     this.remoteVideos.forEach((video, peerId) => {
       if (!remoteStreams.has(peerId)) {
@@ -151,7 +157,7 @@ export default class VideoGrid extends Component {
     video.srcObject = stream;
     video.autoplay = true;
     video.playsInline = true;
-    
+
     this.element.appendChild(video);
     this.remoteVideos.set(peerId, video);
   }
@@ -171,7 +177,7 @@ export default class RoomController {
     this.roomId = roomId;
     this.webrtc = new WebRTCService();
     this.media = new MediaService();
-    
+
     this.setupEventHandlers();
   }
 
@@ -180,7 +186,7 @@ export default class RoomController {
       // Get local media
       const stream = await this.media.getUserMedia({
         video: { width: 640, height: 480, frameRate: 15 },
-        audio: true
+        audio: true,
       });
 
       store.commit('setLocalStream', stream);
@@ -240,7 +246,7 @@ export default class Store {
     this.state = new Proxy(state, {
       set: (target, key, value) => {
         target[key] = value;
-        
+
         console.log(`State change: ${key}`);
         this.events.publish('stateChange', this.state);
 
@@ -250,7 +256,7 @@ export default class Store {
 
         this.status = 'resting';
         return true;
-      }
+      },
     });
   }
 
@@ -316,7 +322,7 @@ export default class SignalingService extends EventEmitter {
   send(peerId, signal) {
     this.socket.emit('signal', {
       toId: peerId,
-      signal: signal
+      signal: signal,
     });
   }
 
@@ -353,7 +359,7 @@ export default class WebRTCService extends EventEmitter {
     const pc = new RTCPeerConnection(config);
 
     // Add local tracks
-    localStream.getTracks().forEach(track => {
+    localStream.getTracks().forEach((track) => {
       pc.addTrack(track, localStream);
     });
 
@@ -364,7 +370,7 @@ export default class WebRTCService extends EventEmitter {
     this.connections.set(remotePeerId, {
       pc,
       makingOffer: false,
-      isPolite: this.isPolite(remotePeerId)
+      isPolite: this.isPolite(remotePeerId),
     });
 
     return pc;
@@ -381,7 +387,7 @@ export default class WebRTCService extends EventEmitter {
       this.emit('remote-track', {
         peerId: remotePeerId,
         track,
-        stream: streams[0]
+        stream: streams[0],
       });
     };
 
@@ -406,13 +412,13 @@ export default class WebRTCService extends EventEmitter {
     try {
       connection.makingOffer = true;
       await connection.pc.setLocalDescription();
-      
+
       this.emit('signal-outgoing', {
         peerId: remotePeerId,
         signal: {
           type: 'offer',
-          description: connection.pc.localDescription
-        }
+          description: connection.pc.localDescription,
+        },
       });
     } catch (error) {
       console.error('Negotiation error:', error);
@@ -448,8 +454,8 @@ export default class WebRTCService extends EventEmitter {
             peerId: remotePeerId,
             signal: {
               type: 'answer',
-              description: pc.localDescription
-            }
+              description: pc.localDescription,
+            },
           });
         }
       } else if (signal.candidate) {
@@ -495,13 +501,13 @@ export default class MediaService {
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true
+        autoGainControl: true,
       },
       video: {
         width: { ideal: 640 },
         height: { ideal: 480 },
-        frameRate: { ideal: 15 }
-      }
+        frameRate: { ideal: 15 },
+      },
     };
   }
 
@@ -518,7 +524,7 @@ export default class MediaService {
     try {
       return await navigator.mediaDevices.getDisplayMedia({
         video: { cursor: 'always' },
-        audio: false
+        audio: false,
       });
     } catch (error) {
       throw this.handleMediaError(error);
@@ -527,39 +533,37 @@ export default class MediaService {
 
   toggleAudio(enabled) {
     if (!this.localStream) return;
-    
-    this.localStream.getAudioTracks().forEach(track => {
+
+    this.localStream.getAudioTracks().forEach((track) => {
       track.enabled = enabled;
     });
   }
 
   toggleVideo(enabled) {
     if (!this.localStream) return;
-    
-    this.localStream.getVideoTracks().forEach(track => {
+
+    this.localStream.getVideoTracks().forEach((track) => {
       track.enabled = enabled;
     });
   }
 
   async replaceVideoTrack(newTrack, senders) {
-    await Promise.all(
-      senders.map(sender => sender.replaceTrack(newTrack))
-    );
+    await Promise.all(senders.map((sender) => sender.replaceTrack(newTrack)));
   }
 
   stopAllTracks() {
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream.getTracks().forEach((track) => track.stop());
       this.localStream = null;
     }
   }
 
   handleMediaError(error) {
     const errorMessages = {
-      'NotAllowedError': 'Permission denied for camera/microphone',
-      'NotFoundError': 'No camera/microphone found',
-      'NotReadableError': 'Device is already in use',
-      'OverconstrainedError': 'Requested constraints cannot be satisfied'
+      NotAllowedError: 'Permission denied for camera/microphone',
+      NotFoundError: 'No camera/microphone found',
+      NotReadableError: 'Device is already in use',
+      OverconstrainedError: 'Requested constraints cannot be satisfied',
     };
 
     return new Error(errorMessages[error.name] || error.message);
@@ -570,19 +574,19 @@ export default class MediaService {
       return {
         width: { ideal: 1280 },
         height: { ideal: 720 },
-        frameRate: { ideal: 30 }
+        frameRate: { ideal: 30 },
       };
     } else if (participantCount <= 6) {
       return {
         width: { ideal: 640 },
         height: { ideal: 480 },
-        frameRate: { ideal: 15 }
+        frameRate: { ideal: 15 },
       };
     } else {
       return {
         width: { ideal: 320 },
         height: { ideal: 240 },
-        frameRate: { ideal: 10 }
+        frameRate: { ideal: 10 },
       };
     }
   }
@@ -604,12 +608,12 @@ export default class DataChannelService extends EventEmitter {
   createChannel(peerConnection, peerId, label = 'data') {
     const channel = peerConnection.createDataChannel(label, {
       ordered: true,
-      maxRetransmits: 3
+      maxRetransmits: 3,
     });
 
     this.setupChannelHandlers(channel, peerId);
     this.channels.set(peerId, channel);
-    
+
     return channel;
   }
 
@@ -648,7 +652,7 @@ export default class DataChannelService extends EventEmitter {
 
   send(peerId, data) {
     const channel = this.channels.get(peerId);
-    
+
     if (!channel || channel.readyState !== 'open') {
       console.warn(`Cannot send to ${peerId}: channel not open`);
       return false;
@@ -805,7 +809,7 @@ export default class EventEmitter {
   emit(eventName, ...args) {
     if (!this.events.has(eventName)) return false;
 
-    this.events.get(eventName).forEach(callback => {
+    this.events.get(eventName).forEach((callback) => {
       try {
         callback.apply(this, args);
       } catch (error) {
@@ -821,7 +825,7 @@ export default class EventEmitter {
 
     const callbacks = this.events.get(eventName);
     const index = callbacks.indexOf(callback);
-    
+
     if (index > -1) {
       callbacks.splice(index, 1);
     }
@@ -864,8 +868,8 @@ export default class PubSub {
     if (!this.events.has(event)) return;
 
     const subscriptions = this.events.get(event);
-    const index = subscriptions.findIndex(sub => sub.id === id);
-    
+    const index = subscriptions.findIndex((sub) => sub.id === id);
+
     if (index > -1) {
       subscriptions.splice(index, 1);
     }
@@ -905,7 +909,7 @@ class PerfectNegotiationConnection extends EventEmitter {
     this.makingOffer = false;
     this.ignoreOffer = false;
     this.isSettingRemoteAnswerPending = false;
-    
+
     this.setupPerfectNegotiation();
   }
 
@@ -939,7 +943,7 @@ class PerfectNegotiationConnection extends EventEmitter {
         const readyForOffer =
           !this.makingOffer &&
           (this.pc.signalingState === 'stable' ||
-           this.isSettingRemoteAnswerPending);
+            this.isSettingRemoteAnswerPending);
 
         const offerCollision = description.type === 'offer' && !readyForOffer;
         this.ignoreOffer = !this.isPolite && offerCollision;

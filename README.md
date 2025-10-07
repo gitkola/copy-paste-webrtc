@@ -76,6 +76,7 @@ Navigate to: **`http://localhost:8000/src/`**
 ### Copy-Paste Flow
 
 **Person A (Initiator):**
+
 1. Open app → Click "Share Offer Link"
 2. Share URL via any messaging app
 3. Wait for Person B's answer code
@@ -83,6 +84,7 @@ Navigate to: **`http://localhost:8000/src/`**
 5. ✅ Connected!
 
 **Person B (Responder):**
+
 1. Open shared URL
 2. Click "Share Answer Code"
 3. Send code back to Person A
@@ -91,12 +93,14 @@ Navigate to: **`http://localhost:8000/src/`**
 ### QR Code Flow
 
 **Person A (Initiator):**
+
 1. Open app → Click "Share Offer QR"
 2. Share QR image to Person B
 3. Click "Paste QR Answer" → Upload Person B's QR
 4. ✅ Connected!
 
 **Person B (Responder):**
+
 1. Open app → Click "Paste QR Offer" → Upload Person A's QR
 2. Click "Show QR" → Share answer QR to Person A
 3. ✅ Connected!
@@ -160,10 +164,10 @@ copy-paste-webrtc/
 // In browser console
 
 // Access application state
-window.__DEBUG__.store.state
+window.__DEBUG__.store.state;
 
 // Enable debug logging
-window.__DEBUG__.logger.setLevel('DEBUG')
+window.__DEBUG__.logger.setLevel('DEBUG');
 
 // Monitor state changes
 window.__DEBUG__.store.subscribe((state, change) => {

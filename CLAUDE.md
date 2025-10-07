@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT
+
+This document isn't actual after global refactoring of the project.
+
 ## Project Overview
 
 This is a **peer-to-peer WebRTC video chat application** that works without any signaling server. The entire implementation is contained in a single [index.html](index.html) file with embedded JavaScript and CSS, plus [qrcode.js](qrcode.js) (minified library) for QR code generation.
@@ -13,6 +17,7 @@ This is a **peer-to-peer WebRTC video chat application** that works without any 
 The app uses **manual signaling** (copy-paste or QR codes) instead of a traditional WebRTC signaling server:
 
 **Copy-Paste Flow:**
+
 1. **Initiator** creates an offer and generates a shareable URL with the offer encoded in the hash
 2. **Responder** opens the URL, which decodes the offer from the hash
 3. Responder generates an answer code (base64 encoded SDP)
@@ -20,6 +25,7 @@ The app uses **manual signaling** (copy-paste or QR codes) instead of a traditio
 5. Initiator pastes the answer code to establish the peer connection
 
 **QR Code Flow:**
+
 - Offers and answers can be shared via QR codes instead of copy-paste
 - **"Share QR Offer"** button (NEW!) - One-click: generates QR and opens native share menu directly
 - "Show QR" button - Generates QR codes in modal (offer URL or answer base64) for manual sharing
@@ -32,6 +38,7 @@ The app uses **manual signaling** (copy-paste or QR codes) instead of a traditio
 The app establishes connections in two stages:
 
 1. **Data Channel Connection** (`this.pc`): Established first using the manual copy-paste process
+
    - Used to exchange media negotiation messages
    - Created in `createDataConnection()` ([index.html:1133](index.html#L1133))
 
@@ -53,12 +60,14 @@ The app establishes connections in two stages:
 ### UI State Management
 
 The button state machine transitions through:
+
 - `ready`: Initial state, no peer connection created yet (lazy initialization). Shows "Share Offer Link" and "Share QR Offer" buttons
 - `share`: After creating offer, shows "Share Offer Link" button and QR options
 - `paste`: After sharing, shows "Paste Answer Code" button
 - `close`: After connection established, shows close button
 
 Video layout modes (toggled by clicking videos):
+
 - `split`: 50/50 split view (default when connected)
 - `local-full`: Local video full screen, remote as thumbnail
 - `remote-full`: Remote video full screen, local as thumbnail
@@ -68,6 +77,7 @@ Video layout modes (toggled by clicking videos):
 The app supports complete QR code-based signaling as an alternative to copy-paste:
 
 - **Direct Sharing**: `shareQROfferDirect()` - One-click QR sharing workflow (NEW!)
+
   - Creates peer connection if needed (lazy initialization)
   - Generates QR code directly without showing modal
   - Opens native share menu with QR image
@@ -75,16 +85,19 @@ The app supports complete QR code-based signaling as an alternative to copy-past
   - Automatically transitions to "Paste Answer" state
 
 - **Generation**: `showQRCode()` - Intelligently creates QR codes for either offer URLs or answer codes based on role
+
   - Offers: Encoded as full URL with hash (e.g., `http://localhost:3000/#eyJ0eXBlIjoi...`)
   - Answers: Encoded as base64 string directly (e.g., `eyJ0eXBlIjoiYW5zd2VyIi...`)
   - Uses error correction level 'L' and 600x600px size for optimal scanning
 
 - **Decoding**: `decodeQRFromBlob()` - Reads pasted/uploaded QR code images with context awareness
+
   - Uses ZXing library (primary, more powerful) with fallback to jsQR
   - Tries multiple image scales (1, 1.5, 2, 3, 4, 0.75, 0.5) for robust detection
   - Context-aware validation: rejects wrong QR type with clear error messages
 
 - **QR Buttons**:
+
   - `qr-share-offer-btn`: "Share QR Offer" (top secondary button, one-click sharing)
   - `qr-show-btn`: "Show QR" (top secondary button, shows modal for manual sharing)
   - `initial-qr-paste-btn`: "Paste QR Offer" (bottom of screen, visible on initial load)
@@ -116,6 +129,7 @@ The app requires camera/microphone permissions and works best with two separate 
 ## How to Test
 
 ### Standard Copy-Paste Flow
+
 1. Open the app in one browser window
 2. Click "Share Offer Link" → Creates peer connection and generates offer
 3. Share URL via native share or clipboard
@@ -127,6 +141,7 @@ The app requires camera/microphone permissions and works best with two separate 
 ### One-Click QR Flow (Recommended - Fastest!)
 
 **Initiator (Person A):**
+
 1. Open app → Camera starts (no connection yet - lazy initialization)
 2. Click **"Share QR Offer"** → Creates connection, generates QR, opens share menu
 3. Share QR image to Person B (via any messaging app)
@@ -135,6 +150,7 @@ The app requires camera/microphone permissions and works best with two separate 
 6. ✅ Connection established!
 
 **Responder (Person B):**
+
 1. Open app → Camera starts
 2. Click "Paste QR Offer" (bottom button)
 3. Upload Person A's offer QR image
@@ -144,6 +160,7 @@ The app requires camera/microphone permissions and works best with two separate 
 ### Traditional QR Code Flow (via Modal)
 
 **Initiator (Person A):**
+
 1. Open app → Click "Share Offer Link" (creates connection)
 2. Click "Show QR" (top secondary button) → Displays offer QR code in modal
 3. Download/share the QR code to Person B (via Share Image or Download)
@@ -152,6 +169,7 @@ The app requires camera/microphone permissions and works best with two separate 
 6. ✅ Connection established!
 
 **Responder (Person B):**
+
 1. Open app → Click "Paste QR Offer" (bottom button)
 2. Upload/paste Person A's offer QR code image
 3. App processes offer and becomes responder
@@ -160,6 +178,7 @@ The app requires camera/microphone permissions and works best with two separate 
 6. ✅ Connection established!
 
 **Important Notes:**
+
 - **Lazy Initialization**: Peer connection is created only when user explicitly shares or pastes an offer
 - The "Paste QR Offer" button is always visible on initial screen
 - The "Paste QR Answer" button appears when initiator is ready for answer (in 'share' state)
@@ -171,6 +190,7 @@ The app requires camera/microphone permissions and works best with two separate 
 ### ICE Servers
 
 Uses Google's public STUN servers:
+
 - `stun:stun.l.google.com:19302`
 - `stun:stun1.l.google.com:19302`
 - `stun:stun2.l.google.com:19302`
@@ -180,6 +200,7 @@ No TURN servers configured (direct P2P only).
 ### Data Encoding
 
 All signaling data (offers/answers) is base64-encoded JSON containing SDP information with ICE candidates embedded:
+
 ```json
 {
   "type": "offer" | "answer",
@@ -188,6 +209,7 @@ All signaling data (offers/answers) is base64-encoded JSON containing SDP inform
 ```
 
 **ICE Candidate Gathering:**
+
 - **Initial data connection**: Waits for ICE candidates before sharing (required for copy-paste/QR signaling)
 - **Media connection**: Uses Trickle ICE - candidates sent separately via data channel as they arrive
 - This hybrid approach optimizes for both reliability (initial) and speed (media)
@@ -195,6 +217,7 @@ All signaling data (offers/answers) is base64-encoded JSON containing SDP inform
 ### Mobile Optimization
 
 The app includes extensive mobile optimizations:
+
 - PWA-capable with manifest and icons
 - Viewport settings for fullscreen mobile experience
 - Touch-optimized UI with no scrolling/zooming
@@ -205,20 +228,24 @@ The app includes extensive mobile optimizations:
 ### QR Code Issues
 
 **"No QR code found in image"**
+
 - Ensure the QR code image is clear and high resolution
 - Try taking a screenshot instead of using the original QR code
 - The app tries multiple image scales automatically (1x to 4x)
 - Check browser console for detailed decoder logs
 
 **"This looks like an offer, not an answer"**
+
 - You clicked "Paste QR Answer" but uploaded an offer QR code
 - Use "Paste QR Offer" button instead (bottom of screen initially)
 
 **"This doesn't look like an offer QR code"**
+
 - You clicked "Paste QR Offer" but uploaded an answer QR code
 - The responder should use "Show QR" to generate their answer QR
 
 **Share QR Code Issues (Safari/macOS)**
+
 - Safari may not support sharing images directly to all apps
 - Use "Download" button as fallback
 - Copy to clipboard is attempted as secondary fallback
@@ -226,12 +253,14 @@ The app includes extensive mobile optimizations:
 ### Connection Issues
 
 **ICE connection failed**
+
 - Both peers must be on networks that allow P2P connections
 - No TURN servers configured - direct P2P only
 - Corporate/restrictive firewalls may block connections
 - Check browser console for ICE state changes
 
 **Data channel not opening**
+
 - Ensure both sides have completed the full handshake
 - Check that answer code was processed correctly
 - Verify no peer connection was closed prematurely
@@ -241,6 +270,7 @@ The app includes extensive mobile optimizations:
 ### Useful Console Logs
 
 **QR Code Generation:**
+
 ```
 Generating QR code for offer: http://localhost:3000/#eyJ...
 Data length: 1167
@@ -248,6 +278,7 @@ Data type check: URL
 ```
 
 **QR Code Decoding (Offer):**
+
 ```
 Trying ZXing decoder...
 ✅ QR code decoded successfully with jsQR at scale 1
@@ -257,6 +288,7 @@ Trying ZXing decoder...
 ```
 
 **QR Code Decoding (Answer):**
+
 ```
 📥 Processing answer QR code, length: 856
 ✅ Valid answer data
@@ -264,6 +296,7 @@ Trying ZXing decoder...
 ```
 
 **Connection States:**
+
 ```
 ICE: checking
 PC: connecting
@@ -272,6 +305,7 @@ DataChannel opened
 ```
 
 **Media Negotiation:**
+
 ```
 Starting media negotiation, role: initiator
 🎉 Connected!
@@ -293,6 +327,7 @@ Starting media negotiation, role: initiator
 ### Code Quality
 
 The codebase has been refactored with:
+
 - **CONFIG object**: All magic numbers centralized (timeouts, video settings, QR settings)
 - **Error handling**: Standardized `handleError()` method throughout
 - **Cleanup**: Proper `cleanup()` method to prevent memory leaks
