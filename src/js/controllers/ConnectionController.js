@@ -119,6 +119,7 @@ export default class ConnectionController {
       await store.dispatch('startAsInitiator');
 
       store.commit('setLoading', false);
+      store.commit('setProcessing', false);
       logger.info('✅ Offer created and ready to share');
     } catch (error) {
       logger.error('Failed to start as initiator:', error);
@@ -164,6 +165,7 @@ export default class ConnectionController {
       await store.dispatch('becomeResponder');
 
       store.commit('setLoading', false);
+      store.commit('setProcessing', false);
       logger.info('✅ Answer ready to share');
     } catch (error) {
       logger.error('Failed to process offer:', error);
@@ -192,6 +194,8 @@ export default class ConnectionController {
         sdp: answerData.sdp,
       });
 
+      store.commit('setLoading', false);
+      store.commit('setProcessing', false);
       logger.info('✅ Answer processed, waiting for connection...');
     } catch (error) {
       logger.error('Failed to process answer:', error);
