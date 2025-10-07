@@ -1,0 +1,47 @@
+/**
+ * Base styles - Reset, typography, and global styles
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0a0a;
+  color: #fff;
+}
+
+button,
+.toggle-btn,
+.control-btn,
+textarea,
+input {
+  touch-action: manipulation;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

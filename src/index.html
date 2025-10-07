@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-touch-fullscreen" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <title>P2P WebRTC</title>
+
+    <!-- External Libraries -->
+    <script type="text/javascript" src="/qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/src/css/main.css" />
+  </head>
+  <body>
+    <!-- Video Grid View Layer -->
+    <div id="video-grid-view">
+      <video
+        id="local-video"
+        autoplay
+        muted
+        playsinline
+        class="no-click"
+      ></video>
+      <video id="remote-video" autoplay playsinline class="hidden"></video>
+    </div>
+
+    <!-- Controls Overlay Layer -->
+    <div id="controls-overlay">
+      <!-- Main button container (can hold 1 or 2 buttons) -->
+      <div id="main-button-container">
+        <!-- Initial state: Share Offer button -->
+        <button id="share-offer-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Offer</span>
+        </button>
+
+        <!-- Initial state: Paste Offer button -->
+        <button id="paste-offer-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00d4ff, #0099cc); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+          <span>Paste Offer</span>
+        </button>
+
+        <!-- Initiator: Share Offer Link button -->
+        <button id="share-offer-link-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Offer Link</span>
+        </button>
+
+        <!-- Initiator: Share Offer QR button -->
+        <button id="share-offer-qr-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>Share Offer QR</span>
+        </button>
+
+        <!-- Initiator: Paste Answer button (waiting state) -->
+        <button id="paste-answer-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Paste Answer</span>
+        </button>
+
+        <!-- Responder: Share Answer Code button -->
+        <button id="share-answer-code-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00ff88, #00cc66); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Answer Code</span>
+        </button>
+
+        <!-- Responder: Share Answer QR button -->
+        <button id="share-answer-qr-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00ff88, #00cc66); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>Share Answer QR</span>
+        </button>
+      </div>
+
+      <!-- Top Control Panel -->
+      <div id="top-control-panel">
+        <button id="mic-toggle" class="panel-btn"></button>
+        <button id="camera-toggle" class="panel-btn"></button>
+        <button id="reload-btn" class="panel-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button>
+        <button id="close-btn" class="panel-btn close-btn-panel hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Paste Modal -->
+    <div id="paste-modal" class="hidden">
+      <h3>Paste Answer Code</h3>
+      <textarea
+        id="answer-input"
+        placeholder="Paste the answer code here..."
+      ></textarea>
+      <div class="modal-actions">
+        <button id="modal-cancel">Cancel</button>
+        <button id="modal-connect">Connect</button>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="hidden">
+      <h3>QR Code</h3>
+      <div id="qr-display"></div>
+      <div class="qr-actions">
+        <button id="qr-share">Share Image</button>
+        <button id="qr-download">Download</button>
+        <button id="qr-close">Close</button>
+      </div>
+    </div>
+
+    <!-- QR Paste Modal -->
+    <div id="qr-paste-modal" class="hidden">
+      <h3 id="qr-paste-modal-title">Paste or Upload QR Code</h3>
+      <div id="qr-paste-area">
+        <p>📋 Paste QR image (Ctrl+V / Cmd+V)</p>
+        <p>or</p>
+        <button id="qr-upload-btn" class="control-btn" style="margin-top: 10px">
+          Choose File
+        </button>
+      </div>
+      <input type="file" id="qr-file-input" accept="image/*" />
+      <div class="modal-actions" style="margin-top: 20px">
+        <button id="qr-paste-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Main Application Script (ES6 Module) -->
+    <script type="module" src="/src/js/main.js"></script>
+  </body>
+</html>
