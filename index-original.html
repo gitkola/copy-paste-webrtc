@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-touch-fullscreen" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <title>P2P WebRTC</title>
+    <!-- QR Code Libraries -->
+    <script type="text/javascript" src="qrcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        -webkit-user-select: none;
+        user-select: none;
+        touch-action: none;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #0a0a0a;
+        color: #fff;
+      }
+
+      button,
+      .toggle-btn,
+      .control-btn,
+      textarea,
+      input {
+        touch-action: manipulation;
+      }
+
+      /* Video Grid View Layer - Bottom */
+      #video-grid-view {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #0a0a0a;
+        display: flex;
+        overflow: hidden;
+      }
+
+      /* Default: Local video full screen (before connection) */
+      #local-video {
+        width: 100%;
+        height: 100%;
+        flex-shrink: 0;
+      }
+
+      #remote-video {
+        width: 100%;
+        height: 100%;
+        flex-shrink: 0;
+      }
+
+      /* 50/50 Split Mode - vertical (portrait) */
+      #video-grid-view.mode-split-v {
+        flex-direction: column;
+      }
+
+      #video-grid-view.mode-split-v #local-video,
+      #video-grid-view.mode-split-v #remote-video:not(.hidden) {
+        width: 100%;
+        height: 50%;
+      }
+
+      /* 50/50 Split Mode - horizontal (landscape) */
+      #video-grid-view.mode-split-h {
+        flex-direction: row;
+      }
+
+      #video-grid-view.mode-split-h #local-video,
+      #video-grid-view.mode-split-h #remote-video:not(.hidden) {
+        width: 50%;
+        height: 100%;
+      }
+
+      /* Full-screen Mode */
+      #video-grid-view.mode-full {
+        position: relative;
+      }
+
+      #video-grid-view.mode-full video.full {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+
+      #video-grid-view.mode-full video.thumbnail {
+        width: 120px;
+        height: 160px;
+        position: absolute;
+        bottom: 80px;
+        right: 20px;
+        z-index: 2;
+        border-radius: 12px;
+      }
+
+      #video-grid-view.mode-full #local-video.thumbnail {
+        border-color: #0088ff;
+      }
+
+      video {
+        background: #1a1a1a;
+        object-fit: cover;
+        cursor: pointer;
+        touch-action: none;
+      }
+
+      #local-video {
+        transform: scaleX(-1);
+        border: 3px solid #0088ff;
+      }
+
+      /* Disable pointer events on local video before connection */
+      #local-video.no-click {
+        pointer-events: none;
+      }
+
+      video.hidden {
+        height: 0 !important;
+        width: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+        position: absolute;
+      }
+
+      /* Controls Overlay Layer - Top */
+      #controls-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .control-btn {
+        pointer-events: auto;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        padding: 14px 24px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        touch-action: manipulation;
+      }
+
+      .control-btn:active {
+        transform: scale(0.95);
+        background: rgba(0, 0, 0, 0.9);
+      }
+
+      .control-btn.primary {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+        border-color: transparent;
+      }
+
+      .control-btn:disabled,
+      .control-btn.loading {
+        opacity: 0.6;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      .control-btn svg {
+        width: 20px;
+        height: 20px;
+        margin-right: 8px;
+        flex-shrink: 0;
+      }
+
+      .control-btn.loading::after {
+        content: '';
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        margin-left: 8px;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Top Control Panel */
+      #top-control-panel {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: rgba(100, 100, 100, 0.85);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        padding: 0 20px;
+        z-index: 15;
+        pointer-events: auto;
+      }
+
+      .panel-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        touch-action: manipulation;
+      }
+
+      .panel-btn svg {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+
+      .panel-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .panel-btn:active {
+        transform: scale(0.9);
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .panel-btn.off {
+        opacity: 0.5;
+      }
+
+      .close-btn-panel {
+        background: rgba(255, 0, 0, 0.9) !important;
+        margin-left: auto;
+      }
+
+      .close-btn-panel:hover {
+        background: rgba(255, 0, 0, 1) !important;
+      }
+
+      #reload-btn {
+        margin-left: auto;
+      }
+
+      /* Button container for flexible layouts */
+      #main-button-container {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        gap: 12px;
+        transition: all 0.3s ease;
+        pointer-events: none;
+      }
+
+      #main-button-container > button {
+        pointer-events: auto;
+      }
+
+      /* Modal */
+      #paste-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        max-width: 400px;
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        z-index: 20;
+        pointer-events: auto;
+      }
+
+      #paste-modal.hidden {
+        display: none;
+      }
+
+      #paste-modal h3 {
+        margin-bottom: 16px;
+        font-size: 18px;
+        color: #fff;
+      }
+
+      #answer-input {
+        width: 100%;
+        min-height: 120px;
+        background: #1a1a1a;
+        border: 2px solid #333;
+        border-radius: 8px;
+        padding: 12px;
+        color: #fff;
+        font-size: 13px;
+        font-family: 'SF Mono', Monaco, monospace;
+        resize: vertical;
+        margin-bottom: 16px;
+      }
+
+      #answer-input:focus {
+        outline: none;
+        border-color: #00ff88;
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 12px;
+      }
+
+      .modal-actions button {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      #modal-connect {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+      }
+
+      #modal-cancel {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      /* Toast */
+      #toast {
+        position: absolute;
+        bottom: 200px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 24px;
+        font-size: 14px;
+        z-index: 30;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      #toast.show {
+        opacity: 1;
+      }
+
+      /* Landscape mode adjustments */
+      @media (orientation: landscape) {
+        #video-grid-view.mode-split-v {
+          flex-direction: row;
+        }
+
+        #video-grid-view.mode-split-v #local-video,
+        #video-grid-view.mode-split-v #remote-video:not(.hidden) {
+          width: 50%;
+          height: 100%;
+        }
+
+        #video-grid-view.mode-full video.thumbnail {
+          width: 160px;
+          height: 120px;
+        }
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      #paste-modal.hidden {
+        display: none !important;
+      }
+
+      /* QR Code Modal */
+      #qr-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 30px;
+        z-index: 25;
+        pointer-events: auto;
+        max-width: 90%;
+        max-height: 90%;
+        overflow: auto;
+      }
+
+      #qr-modal.hidden {
+        display: none !important;
+      }
+
+      #qr-paste-modal {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 30px;
+        z-index: 25;
+        pointer-events: auto;
+        max-width: 90%;
+        width: 500px;
+      }
+
+      #qr-paste-modal.hidden {
+        display: none !important;
+      }
+
+      #qr-paste-modal h3 {
+        color: #fff;
+        margin-bottom: 20px;
+        font-size: 20px;
+        text-align: center;
+      }
+
+      #qr-modal h3 {
+        color: #fff;
+        margin-bottom: 20px;
+        font-size: 20px;
+        text-align: center;
+      }
+
+      #qr-display {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      #qr-display canvas {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .qr-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .qr-actions button {
+        flex: 1;
+        min-width: 120px;
+        padding: 14px 24px;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .qr-actions button:active {
+        transform: scale(0.95);
+      }
+
+      #qr-share {
+        background: linear-gradient(135deg, #00ff88, #00cc66);
+        color: #000;
+      }
+
+      #qr-download {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      #qr-close {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+
+      /* QR Paste Area */
+      #qr-paste-area {
+        margin-top: 20px;
+        padding: 20px;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+      }
+
+      #qr-paste-area.dragover {
+        border-color: #00ff88;
+        background: rgba(0, 255, 136, 0.1);
+      }
+
+      #qr-file-input {
+        display: none;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .secondary-btn {
+        pointer-events: auto;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        touch-action: manipulation;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .secondary-btn:active {
+        transform: scale(0.95);
+        background: rgba(0, 0, 0, 0.9);
+      }
+
+      .secondary-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      #button-group-container {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Video Grid View Layer -->
+    <div id="video-grid-view">
+      <video
+        id="local-video"
+        autoplay
+        muted
+        playsinline
+        class="no-click"
+      ></video>
+      <video id="remote-video" autoplay playsinline class="hidden"></video>
+    </div>
+
+    <!-- Controls Overlay Layer -->
+    <div id="controls-overlay">
+      <button id="reload-btn" class="toggle-btn"></button>
+
+      <!-- Main button container (can hold 1 or 2 buttons) -->
+      <div id="main-button-container">
+        <!-- Initial state: Share Offer button -->
+        <button id="share-offer-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Offer</span>
+        </button>
+
+        <!-- Initial state: Paste Offer button -->
+        <button id="paste-offer-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00d4ff, #0099cc); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+          <span>Paste Offer</span>
+        </button>
+
+        <!-- Initiator: Share Offer Link button -->
+        <button id="share-offer-link-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Offer Link</span>
+        </button>
+
+        <!-- Initiator: Share Offer QR button -->
+        <button id="share-offer-qr-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>Share Offer QR</span>
+        </button>
+
+        <!-- Initiator: Paste Answer button (waiting state) -->
+        <button id="paste-answer-btn" class="control-btn primary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Paste Answer</span>
+        </button>
+
+        <!-- Responder: Share Answer Code button -->
+        <button id="share-answer-code-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00ff88, #00cc66); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          <span>Share Answer Code</span>
+        </button>
+
+        <!-- Responder: Share Answer QR button -->
+        <button id="share-answer-qr-btn" class="control-btn hidden" style="background: linear-gradient(135deg, #00ff88, #00cc66); color: #000;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          <span>Share Answer QR</span>
+        </button>
+      </div>
+
+      <!-- Top Control Panel -->
+      <div id="top-control-panel">
+        <button id="mic-toggle" class="panel-btn"></button>
+        <button id="camera-toggle" class="panel-btn"></button>
+        <button id="reload-btn" class="panel-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button>
+        <button id="close-btn" class="panel-btn close-btn-panel hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Paste Modal -->
+    <div id="paste-modal" class="hidden">
+      <h3>Paste Answer Code</h3>
+      <textarea
+        id="answer-input"
+        placeholder="Paste the answer code here..."
+      ></textarea>
+      <div class="modal-actions">
+        <button id="modal-cancel">Cancel</button>
+        <button id="modal-connect">Connect</button>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast"></div>
+
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="hidden">
+      <h3>QR Code</h3>
+      <div id="qr-display"></div>
+      <div class="qr-actions">
+        <button id="qr-share">Share Image</button>
+        <button id="qr-download">Download</button>
+        <button id="qr-close">Close</button>
+      </div>
+    </div>
+
+    <!-- QR Paste Modal -->
+    <div id="qr-paste-modal" class="hidden">
+      <h3 id="qr-paste-modal-title">Paste or Upload QR Code</h3>
+      <div id="qr-paste-area">
+        <p>📋 Paste QR image (Ctrl+V / Cmd+V)</p>
+        <p>or</p>
+        <button id="qr-upload-btn" class="control-btn" style="margin-top: 10px">
+          Choose File
+        </button>
+      </div>
+      <input type="file" id="qr-file-input" accept="image/*" />
+      <div class="modal-actions" style="margin-top: 20px">
+        <button id="qr-paste-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <script>
+      const CONFIG = {
+        // Timeouts (ms)
+        TOAST_DURATION: 2000,
+        AUTO_PASTE_DELAY: 100,
+        MEDIA_NEGOTIATION_DELAY: 500,
+        ICE_GATHERING_TIMEOUT: 5000,
+
+        // Video settings
+        VIDEO_WIDTH: 640,
+        VIDEO_HEIGHT: 480,
+
+        // QR Code settings
+        QR_SIZE: 800,
+        QR_ERROR_CORRECTION: 'H', // High error correction (30%) for better reliability
+        QR_MARGIN: 2,
+
+        // WebRTC settings
+        ICE_CANDIDATE_POOL_SIZE: 10,
+
+        // ICE servers
+        ICE_SERVERS: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+      };
+
+      const ICONS = {
+        close: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+        micOn: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>`,
+        micOff: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="22" y1="2" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" x2="12" y1="19" y2="22"/></svg>`,
+        cameraOn: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>`,
+        cameraOff: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><path d="m2 2 20 20"/></svg>`,
+        reload: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>`,
+        share: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-share-icon lucide-share"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg>`,
+        paste: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-icon lucide-download"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>`,
+      };
+
+      class P2PWebRTC {
+        constructor() {
+          this.pc = null;
+          this.dataChannel = null;
+          this.mediaPc = null;
+          this.localStream = null;
+          this.role = null;
+          this.connectionEstablished = false;
+
+          // UI state
+          this.videoMode = 'split'; // 'split', 'local-full', 'remote-full'
+          this.buttonState = 'initial'; // 'initial', 'initiator-share', 'initiator-wait-answer', 'responder-share', 'connected'
+          this.qrPasteContext = 'offer'; // 'offer' or 'answer' - what type of QR we're expecting
+          this.micEnabled = true;
+          this.cameraEnabled = true;
+          this.isLoading = false;
+          this.isProcessing = false; // Prevent duplicate button clicks
+
+          // DOM elements
+          this.localVideo = document.getElementById('local-video');
+          this.remoteVideo = document.getElementById('remote-video');
+          this.videoGrid = document.getElementById('video-grid-view');
+          this.controlsOverlay = document.getElementById('controls-overlay');
+          this.reloadBtn = document.getElementById('reload-btn');
+          this.micToggle = document.getElementById('mic-toggle');
+          this.cameraToggle = document.getElementById('camera-toggle');
+          this.pasteModal = document.getElementById('paste-modal');
+          this.answerInput = document.getElementById('answer-input');
+          this.toast = document.getElementById('toast');
+
+          // Main button elements
+          this.shareOfferBtn = document.getElementById('share-offer-btn');
+          this.pasteOfferBtn = document.getElementById('paste-offer-btn');
+          this.shareOfferLinkBtn = document.getElementById('share-offer-link-btn');
+          this.shareOfferQRBtn = document.getElementById('share-offer-qr-btn');
+          this.pasteAnswerBtn = document.getElementById('paste-answer-btn');
+          this.shareAnswerCodeBtn = document.getElementById('share-answer-code-btn');
+          this.shareAnswerQRBtn = document.getElementById('share-answer-qr-btn');
+          this.closeBtn = document.getElementById('close-btn');
+
+          // QR Code elements (legacy modals)
+          this.qrModal = document.getElementById('qr-modal');
+          this.qrPasteModal = document.getElementById('qr-paste-modal');
+          this.qrDisplay = document.getElementById('qr-display');
+          this.qrFileInput = document.getElementById('qr-file-input');
+          this.currentQRData = null;
+
+          // Data storage
+          this.offerUrl = null;
+          this.answerCode = null;
+
+          this.setupEventListeners();
+          this.initializeIcons();
+        }
+
+        initializeIcons() {
+          // Set initial icons
+          this.reloadBtn.innerHTML = ICONS.reload;
+          this.micToggle.innerHTML = ICONS.micOn;
+          this.cameraToggle.innerHTML = ICONS.cameraOn;
+        }
+
+        setupEventListeners() {
+          // Video click handlers for mode switching
+          this.localVideo.addEventListener('click', () =>
+            this.handleVideoClick('local')
+          );
+          this.remoteVideo.addEventListener('click', () =>
+            this.handleVideoClick('remote')
+          );
+
+          // Reload button - reset to initial state without page reload
+          this.reloadBtn.addEventListener('click', () => this.resetToInitial());
+
+          // Main action buttons
+          this.shareOfferBtn.addEventListener('click', () => this.handleShareOfferClick());
+          this.pasteOfferBtn.addEventListener('click', () => this.handlePasteOfferClick());
+          this.shareOfferLinkBtn.addEventListener('click', () => this.shareOfferLink());
+          this.shareOfferQRBtn.addEventListener('click', () => this.shareOfferQR());
+          this.pasteAnswerBtn.addEventListener('click', () => this.handlePasteAnswerClick());
+          this.shareAnswerCodeBtn.addEventListener('click', () => this.shareAnswerCode());
+          this.shareAnswerQRBtn.addEventListener('click', () => this.shareAnswerQR());
+          this.closeBtn.addEventListener('click', () => this.closeConnection());
+
+          // Mic and camera toggles
+          this.micToggle.addEventListener('click', () => this.toggleMic());
+          this.cameraToggle.addEventListener('click', () =>
+            this.toggleCamera()
+          );
+
+          // Modal actions
+          document
+            .getElementById('modal-cancel')
+            .addEventListener('click', () => {
+              this.pasteModal.classList.add('hidden');
+            });
+          document
+            .getElementById('modal-connect')
+            .addEventListener('click', () => {
+              this.processAnswer();
+            });
+
+          // Auto-paste detection
+          this.answerInput.addEventListener('paste', () => {
+            setTimeout(() => this.processAnswer(), CONFIG.AUTO_PASTE_DELAY);
+          });
+
+          // QR Modal actions
+          document
+            .getElementById('qr-share')
+            .addEventListener('click', () => this.shareQRCode());
+          document
+            .getElementById('qr-download')
+            .addEventListener('click', () => this.downloadQRCode());
+          document
+            .getElementById('qr-close')
+            .addEventListener('click', () =>
+              this.qrModal.classList.add('hidden')
+            );
+
+          // QR Paste Modal actions
+          document
+            .getElementById('qr-paste-cancel')
+            .addEventListener('click', () =>
+              this.qrPasteModal.classList.add('hidden')
+            );
+          document
+            .getElementById('qr-upload-btn')
+            .addEventListener('click', () => this.qrFileInput.click());
+          this.qrFileInput.addEventListener('change', (e) =>
+            this.handleQRFileUpload(e)
+          );
+
+          // QR Paste area - keyboard paste
+          document.addEventListener('paste', (e) => {
+            if (!this.qrPasteModal.classList.contains('hidden')) {
+              this.handleQRPaste(e);
+            }
+          });
+        }
+
+        async init() {
+          await this.setupCamera();
+
+          if (location.hash) {
+            // Opening an offer link - user is responder
+            await this.handleOffer();
+          } else {
+            // Initial state - show both "Share Offer" and "Paste Offer" buttons
+            this.setButtonState('initial');
+            console.log('⏸️ Ready - waiting for user to share or paste offer');
+          }
+        }
+
+        /**
+         * Request and setup user's camera and microphone.
+         * Displays video in local video element.
+         * @returns {Promise<void>}
+         */
+        async setupCamera() {
+          try {
+            this.localStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: CONFIG.VIDEO_WIDTH, height: CONFIG.VIDEO_HEIGHT },
+              audio: true,
+            });
+            this.localVideo.srcObject = this.localStream;
+          } catch (err) {
+            this.handleError('❌ Camera access denied', err);
+          }
+        }
+
+        /**
+         * Start as initiator: create peer connection and generate offer.
+         * Called when user explicitly clicks "Share Offer Link" button.
+         * @param {boolean} autoShare - Automatically share offer after generation
+         * @returns {Promise<void>}
+         */
+        async startAsInitiator() {
+          this.role = 'initiator';
+          console.log('🚀 Creating peer connection as initiator...');
+
+          await this.createDataConnection();
+          await this.generateOffer();
+
+          console.log('✅ Offer created and ready to share');
+        }
+
+        // Video mode toggling
+        handleVideoClick(video) {
+          if (this.videoMode === 'split') {
+            // Switch to full-screen mode
+            this.videoMode = video === 'local' ? 'local-full' : 'remote-full';
+            this.updateVideoLayout();
+          } else if (
+            (this.videoMode === 'local-full' && video === 'remote') ||
+            (this.videoMode === 'remote-full' && video === 'local')
+          ) {
+            // Swap full-screen and thumbnail
+            this.videoMode = video === 'local' ? 'local-full' : 'remote-full';
+            this.updateVideoLayout();
+          } else {
+            // Return to split mode
+            this.videoMode = 'split';
+            this.updateVideoLayout();
+          }
+        }
+
+        updateVideoLayout() {
+          this.videoGrid.className = '';
+          this.localVideo.className = '';
+          this.remoteVideo.className = '';
+
+          if (!this.connectionEstablished) {
+            this.remoteVideo.classList.add('hidden');
+          }
+
+          if (this.videoMode === 'split') {
+            this.videoGrid.classList.add('mode-split-v');
+          } else {
+            this.videoGrid.classList.add('mode-full');
+            if (this.videoMode === 'local-full') {
+              this.localVideo.classList.add('full');
+              this.remoteVideo.classList.add('thumbnail');
+            } else {
+              this.remoteVideo.classList.add('full');
+              this.localVideo.classList.add('thumbnail');
+            }
+          }
+        }
+
+        // Legacy method - no longer used
+        // (Removed - replaced with individual button handlers)
+
+
+        /**
+         * Update UI button visibility based on current state
+         * States: 'initial', 'initiator-share', 'initiator-wait-answer', 'responder-share', 'connected'
+         */
+        setButtonState(state) {
+          this.buttonState = state;
+
+          // Hide all main buttons first
+          this.shareOfferBtn.classList.add('hidden');
+          this.pasteOfferBtn.classList.add('hidden');
+          this.shareOfferLinkBtn.classList.add('hidden');
+          this.shareOfferQRBtn.classList.add('hidden');
+          this.pasteAnswerBtn.classList.add('hidden');
+          this.shareAnswerCodeBtn.classList.add('hidden');
+          this.shareAnswerQRBtn.classList.add('hidden');
+
+          // Control close button and reload button in panel
+          this.closeBtn.classList.add('hidden');
+          this.reloadBtn.classList.remove('hidden');
+
+          if (state === 'initial') {
+            // Show both "Share Offer" and "Paste Offer" buttons
+            this.shareOfferBtn.classList.remove('hidden');
+            this.pasteOfferBtn.classList.remove('hidden');
+          } else if (state === 'initiator-share') {
+            // Initiator: show "Share Offer Link" and "Share Offer QR"
+            this.shareOfferLinkBtn.classList.remove('hidden');
+            this.shareOfferQRBtn.classList.remove('hidden');
+          } else if (state === 'initiator-wait-answer') {
+            // Initiator waiting for answer - show "Paste Answer" button
+            this.pasteAnswerBtn.classList.remove('hidden');
+          } else if (state === 'responder-share') {
+            // Responder: show "Share Answer Code" and "Share Answer QR"
+            this.shareAnswerCodeBtn.classList.remove('hidden');
+            this.shareAnswerQRBtn.classList.remove('hidden');
+          } else if (state === 'connected') {
+            // Show close button in control panel, hide reload button
+            this.closeBtn.classList.remove('hidden');
+            this.reloadBtn.classList.add('hidden');
+          }
+        }
+
+        /**
+         * Handler for "Share Offer" button - initiates peer connection
+         */
+        async handleShareOfferClick() {
+          if (this.isProcessing) return;
+          this.isProcessing = true;
+
+          try {
+            console.log('👤 User clicked Share Offer - creating offer...');
+            await this.startAsInitiator();
+            this.setButtonState('initiator-share');
+          } catch (error) {
+            this.handleError('Failed to create offer', error);
+          } finally {
+            this.isProcessing = false;
+          }
+        }
+
+        /**
+         * Handler for "Paste Offer" button - opens paste modal
+         */
+        async handlePasteOfferClick() {
+          this.showQRPasteModal('offer');
+        }
+
+        /**
+         * Handler for "Paste Answer" button - opens paste modal for answer
+         */
+        async handlePasteAnswerClick() {
+          // Show paste modal for answer code
+          this.pasteModal.classList.remove('hidden');
+          this.answerInput.focus();
+        }
+
+        /**
+         * Handler for "Share Offer Link" button
+         */
+        async shareOfferLink() {
+          if (!this.offerUrl) {
+            console.warn('No offer URL available');
+            this.showToast('❌ No offer URL available');
+            return;
+          }
+
+          // Try native Share API first
+          if (navigator.share) {
+            try {
+              await navigator.share({ url: this.offerUrl });
+              this.showToast('✅ Offer shared');
+              this.setButtonState('initiator-wait-answer');
+              return;
+            } catch (err) {
+              if (err.name !== 'AbortError') {
+                console.error('Share failed:', err);
+              }
+            }
+          }
+
+          // Fallback to clipboard
+          try {
+            await navigator.clipboard.writeText(this.offerUrl);
+            this.showToast('✅ Offer link copied to clipboard');
+            this.setButtonState('initiator-wait-answer');
+          } catch (err) {
+            console.error('Copy failed:', err);
+            this.showToast('❌ Failed to copy');
+          }
+        }
+
+        /**
+         * Handler for "Share Offer QR" button
+         */
+        async shareOfferQR() {
+          if (!this.offerUrl) {
+            console.warn('No offer URL available');
+            this.showToast('❌ No offer URL available');
+            return;
+          }
+
+          try {
+            this.showToast('🔄 Generating QR code...');
+
+            // Determine optimal error correction based on data size
+            const errorCorrection = this.getOptimalErrorCorrection(this.offerUrl);
+            console.log(`Offer data size: ${this.offerUrl.length}, using EC: ${errorCorrection}`);
+
+            // Generate QR code using QRCode.toCanvas
+            const canvas = document.createElement('canvas');
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                this.offerUrl,
+                {
+                  errorCorrectionLevel: errorCorrection,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                }
+              );
+            });
+
+            // Convert canvas to blob with high quality
+            const blob = await new Promise((resolve) => {
+              canvas.toBlob(resolve, 'image/png', 1.0);
+            });
+
+            // Try to share directly
+            if (navigator.share && navigator.canShare) {
+              const file = new File([blob], 'offer-qr.png', { type: 'image/png' });
+              if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Offer QR Code'
+                });
+                this.showToast('✅ QR code shared');
+                this.setButtonState('initiator-wait-answer');
+                return;
+              }
+            }
+
+            // Fallback to showing modal
+            this.showQRCodeModal(this.offerUrl, 'offer');
+            this.setButtonState('initiator-wait-answer');
+          } catch (error) {
+            console.error('QR share failed:', error);
+            this.showToast('❌ Failed to share QR');
+          }
+        }
+
+        /**
+         * Handler for "Share Answer Code" button
+         */
+        async shareAnswerCode() {
+          if (!this.answerCode) {
+            console.warn('No answer code available');
+            this.showToast('❌ No answer code available');
+            return;
+          }
+
+          // Try native Share API first
+          if (navigator.share) {
+            try {
+              await navigator.share({ text: this.answerCode });
+              this.showToast('✅ Answer shared');
+              return;
+            } catch (err) {
+              if (err.name !== 'AbortError') {
+                console.error('Share failed:', err);
+              }
+            }
+          }
+
+          // Fallback to clipboard
+          try {
+            await navigator.clipboard.writeText(this.answerCode);
+            this.showToast('✅ Answer code copied to clipboard');
+          } catch (err) {
+            console.error('Copy failed:', err);
+            this.showToast('❌ Failed to copy');
+          }
+        }
+
+        /**
+         * Handler for "Share Answer QR" button
+         */
+        async shareAnswerQR() {
+          if (!this.answerCode) {
+            console.warn('No answer code available');
+            this.showToast('❌ No answer code available');
+            return;
+          }
+
+          try {
+            this.showToast('🔄 Generating QR code...');
+
+            // Determine optimal error correction based on data size
+            // Answer codes are typically larger than offer URLs, so use lower EC
+            const errorCorrection = this.getOptimalErrorCorrection(this.answerCode);
+            console.log(`Answer data size: ${this.answerCode.length}, using EC: ${errorCorrection}`);
+
+            // Generate QR code using QRCode.toCanvas
+            const canvas = document.createElement('canvas');
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                this.answerCode,
+                {
+                  errorCorrectionLevel: errorCorrection,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                }
+              );
+            });
+
+            // Convert canvas to blob with high quality
+            const blob = await new Promise((resolve) => {
+              canvas.toBlob(resolve, 'image/png', 1.0);
+            });
+
+            // Try to share directly
+            if (navigator.share && navigator.canShare) {
+              const file = new File([blob], 'answer-qr.png', { type: 'image/png' });
+              if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Answer QR Code'
+                });
+                this.showToast('✅ QR code shared');
+                return;
+              }
+            }
+
+            // Fallback to showing modal
+            this.showQRCodeModal(this.answerCode, 'answer');
+          } catch (error) {
+            console.error('QR share failed:', error);
+            this.showToast('❌ Failed to share QR');
+          }
+        }
+
+        /**
+         * Determine optimal error correction level based on data size
+         * QR Code capacity (alphanumeric):
+         * - L (7%):  ~4,296 chars
+         * - M (15%): ~3,391 chars
+         * - Q (25%): ~2,420 chars
+         * - H (30%): ~1,852 chars
+         */
+        getOptimalErrorCorrection(data) {
+          const length = data.length;
+
+          // For very small data, use high error correction for reliability
+          if (length < 500) return 'H';
+
+          // For medium data, use medium-high error correction
+          if (length < 1000) return 'Q';
+
+          // For large data, use medium error correction
+          if (length < 1500) return 'M';
+
+          // For very large data, use low error correction to maximize capacity
+          return 'L';
+        }
+
+        /**
+         * Show QR code in modal
+         */
+        showQRCodeModal(data, type) {
+          this.currentQRData = { data, type };
+
+          // Clear previous QR
+          this.qrDisplay.innerHTML = '';
+
+          // Determine optimal error correction
+          const errorCorrection = this.getOptimalErrorCorrection(data);
+          console.log(`Modal QR - Data size: ${data.length}, using EC: ${errorCorrection}`);
+
+          // Generate QR code using QRCode.toCanvas
+          const canvas = document.createElement('canvas');
+          QRCode.toCanvas(
+            canvas,
+            data,
+            {
+              errorCorrectionLevel: errorCorrection,
+              width: CONFIG.QR_SIZE,
+              margin: CONFIG.QR_MARGIN,
+              color: {
+                dark: '#000000',
+                light: '#FFFFFF',
+              },
+            },
+            (error) => {
+              if (error) {
+                console.error('QR generation failed:', error);
+                this.showToast('❌ Failed to generate QR code');
+              } else {
+                this.qrDisplay.appendChild(canvas);
+                this.qrModal.classList.remove('hidden');
+                console.log(`QR code modal shown for ${type}`);
+              }
+            }
+          );
+        }
+
+        // Mic and camera toggles
+        toggleMic() {
+          this.micEnabled = !this.micEnabled;
+          if (this.localStream) {
+            this.localStream.getAudioTracks().forEach((track) => {
+              track.enabled = this.micEnabled;
+            });
+          }
+          this.micToggle.innerHTML = this.micEnabled
+            ? ICONS.micOn
+            : ICONS.micOff;
+          this.micToggle.classList.toggle('off', !this.micEnabled);
+        }
+
+        toggleCamera() {
+          this.cameraEnabled = !this.cameraEnabled;
+          if (this.localStream) {
+            this.localStream.getVideoTracks().forEach((track) => {
+              track.enabled = this.cameraEnabled;
+            });
+          }
+          this.cameraToggle.innerHTML = this.cameraEnabled
+            ? ICONS.cameraOn
+            : ICONS.cameraOff;
+          this.cameraToggle.classList.toggle('off', !this.cameraEnabled);
+        }
+
+        showToast(message) {
+          this.toast.textContent = message;
+          this.toast.classList.add('show');
+          setTimeout(() => {
+            this.toast.classList.remove('show');
+          }, CONFIG.TOAST_DURATION);
+        }
+
+        /**
+         * Handle errors consistently: log to console and show user-friendly message.
+         * @param {string} userMessage - Message to show to the user
+         * @param {Error|string} error - Error object or message to log
+         * @param {boolean} shouldCleanup - Whether to clean up connections (default: false)
+         */
+        handleError(userMessage, error, shouldCleanup = false) {
+          console.error(userMessage, error);
+          this.showToast(userMessage);
+          this.setLoading(false);
+          this.isProcessing = false;
+
+          if (shouldCleanup) {
+            this.cleanup();
+          }
+        }
+
+        setLoading(loading, statusText = '') {
+          this.isLoading = loading;
+          // Loading state is now handled by showing toasts
+          if (loading && statusText) {
+            this.showToast(statusText);
+          }
+        }
+
+        reloadPage() {
+          // Clear hash if it's an offer link, then reload
+          if (location.hash) {
+            history.replaceState(null, '', location.pathname);
+          }
+          location.reload();
+        }
+
+        /**
+         * Clean up peer connections and resources.
+         * Call this before creating new connections or on errors.
+         */
+        cleanup() {
+          console.log('🧹 Cleaning up peer connections...');
+
+          // Close data peer connection
+          if (this.pc) {
+            this.pc.close();
+            this.pc = null;
+          }
+
+          // Close media peer connection
+          if (this.mediaPc) {
+            this.mediaPc.close();
+            this.mediaPc = null;
+          }
+
+          // Close data channel
+          if (this.dataChannel) {
+            this.dataChannel.close();
+            this.dataChannel = null;
+          }
+
+          this.connectionEstablished = false;
+          this.isProcessing = false;
+          console.log('✅ Cleanup complete');
+        }
+
+        closeConnection() {
+          this.cleanup();
+          this.reloadPage();
+        }
+
+        /**
+         * Reset app to initial state without page reload.
+         * Used by the reload button to go back to initial view.
+         */
+        resetToInitial() {
+          console.log('🔄 Resetting to initial state...');
+
+          // Clean up any peer connections
+          this.cleanup();
+
+          // Clear remote video stream
+          if (this.remoteVideo.srcObject) {
+            this.remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+            this.remoteVideo.srcObject = null;
+          }
+
+          // Clear URL hash if present
+          if (location.hash) {
+            history.replaceState(null, '', location.pathname);
+          }
+
+          // Reset role and state variables
+          this.role = null;
+          this.offerUrl = null;
+          this.answerData = null;
+
+          // Reset UI to initial state
+          this.setButtonState('initial');
+
+          // Clear video mode back to split
+          this.videoMode = 'split';
+          this.updateVideoLayout();
+
+          this.showToast('✅ Reset to initial state');
+          console.log('✅ Reset complete');
+        }
+
+        /**
+         * Create the initial data channel peer connection.
+         * This is used to exchange media negotiation messages.
+         * @returns {Promise<void>}
+         */
+        async createDataConnection() {
+          this.pc = new RTCPeerConnection({
+            iceServers: CONFIG.ICE_SERVERS,
+            iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
+          });
+
+          this.pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              console.log('🧊 ICE candidate generated (data PC):', event.candidate.type);
+              // Candidates will be added automatically to the connection
+              // No need to send them manually with Trickle ICE in this implementation
+            } else {
+              console.log('✅ ICE candidate gathering complete (data PC)');
+            }
+          };
+
+          this.pc.oniceconnectionstatechange = () => {
+            console.log('ICE:', this.pc.iceConnectionState);
+            // Handle ICE connection failures
+            if (this.pc.iceConnectionState === 'failed' || this.pc.iceConnectionState === 'closed') {
+              console.error('❌ ICE connection failed or closed');
+              this.showToast('❌ Connection failed');
+              this.cleanup();
+            }
+          };
+
+          if (this.role === 'initiator') {
+            this.dataChannel = this.pc.createDataChannel('media', {
+              ordered: true,
+            });
+            this.setupDataChannel(this.dataChannel);
+          }
+
+          this.pc.ondatachannel = (event) => {
+            this.dataChannel = event.channel;
+            this.setupDataChannel(this.dataChannel);
+          };
+
+          this.pc.onconnectionstatechange = () => {
+            console.log('PC:', this.pc.connectionState);
+            if (
+              this.pc.connectionState === 'connected' &&
+              !this.connectionEstablished
+            ) {
+              this.connectionEstablished = true;
+              setTimeout(() => this.startMediaNegotiation(), CONFIG.MEDIA_NEGOTIATION_DELAY);
+            }
+          };
+        }
+
+        setupDataChannel(channel) {
+          channel.onopen = () => {
+            console.log('DataChannel opened');
+            this.connectionEstablished = true;
+          };
+
+          channel.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'media-offer') {
+              await this.handleMediaOffer(data);
+            } else if (data.type === 'media-answer') {
+              await this.handleMediaAnswer(data);
+            } else if (data.type === 'ice-candidate') {
+              // Trickle ICE: Receive and add ICE candidates for media connection
+              if (this.mediaPc && data.candidate) {
+                await this.mediaPc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                console.log('🧊 Added remote ICE candidate (media PC)');
+              }
+            }
+          };
+        }
+
+        /**
+         * Generate WebRTC offer and create shareable URL.
+         * Waits for ICE candidates to be embedded in SDP before sharing.
+         * (Required for copy-paste signaling - no other way to exchange candidates)
+         * @returns {Promise<void>}
+         */
+        async generateOffer() {
+          this.setLoading(true, 'Generating offer');
+
+          const offer = await this.pc.createOffer();
+          await this.pc.setLocalDescription(offer);
+
+          // Wait for ICE candidates - they must be in the SDP for copy-paste signaling
+          await this.waitForICECandidates(this.pc);
+
+          const offerData = {
+            type: 'offer',
+            sdp: this.pc.localDescription.sdp,
+          };
+
+          const encoded = btoa(JSON.stringify(offerData));
+          const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+
+          // Store offer URL
+          this.offerUrl = url;
+          this.setLoading(false);
+
+          console.log('📤 Offer created with ICE candidates embedded in SDP');
+        }
+
+        async handleOffer() {
+          const hashData = location.hash.slice(1);
+          await this.handleOfferFromHash(hashData);
+        }
+
+        async handleOfferFromHash(hashData) {
+          try {
+            this.setLoading(true, 'Processing offer');
+            console.log('📥 Received offer via QR code');
+
+            const data = JSON.parse(atob(hashData));
+
+            if (data.type !== 'offer') {
+              this.showToast('❌ Invalid offer data');
+              this.setLoading(false);
+              return;
+            }
+
+            console.log('✅ Offer data valid, becoming responder');
+            this.role = 'responder';
+
+            await this.createDataConnection();
+            console.log('📡 Data connection created');
+
+            await this.pc.setRemoteDescription({
+              type: 'offer',
+              sdp: data.sdp,
+            });
+
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+
+            // Wait for ICE candidates - required for copy-paste signaling
+            await this.waitForICECandidates(this.pc);
+
+            const answerData = {
+              type: 'answer',
+              sdp: this.pc.localDescription.sdp,
+            };
+
+            const encoded = btoa(JSON.stringify(answerData));
+            console.log('📤 Answer created with ICE candidates embedded in SDP');
+
+            // Clear loading and store answer code
+            this.setLoading(false);
+            this.answerCode = encoded;
+
+            // Transition to responder-share state
+            this.setButtonState('responder-share');
+            this.showToast('✅ Answer ready to share');
+            this.isProcessing = false; // Clear processing flag after becoming responder
+          } catch (err) {
+            this.handleError('❌ Error processing offer', err, true);
+          }
+        }
+
+        /**
+         * Process answer code from responder to complete connection.
+         * Decodes base64 answer and sets as remote description.
+         * @returns {Promise<void>}
+         */
+        async processAnswer() {
+          if (this.isProcessing) {
+            console.log('Already processing answer, ignoring');
+            return;
+          }
+
+          const input = this.answerInput.value.trim();
+          if (!input) return;
+
+          this.isProcessing = true;
+
+          try {
+            const data = JSON.parse(atob(input));
+
+            if (data.type !== 'answer') {
+              this.showToast('❌ Invalid answer code');
+              this.isProcessing = false;
+              return;
+            }
+
+            this.pasteModal.classList.add('hidden');
+            this.setLoading(true, 'Connecting');
+            this.showToast('⏳ Connecting...');
+
+            await this.pc.setRemoteDescription({
+              type: 'answer',
+              sdp: data.sdp,
+            });
+
+            this.answerInput.value = '';
+            // Loading state will be cleared when connection is established
+            // isProcessing will be cleared when connection completes
+          } catch (err) {
+            this.handleError('❌ Invalid answer code', err);
+          }
+        }
+
+        async startMediaNegotiation() {
+          console.log('Starting media negotiation, role:', this.role);
+
+          if (this.role === 'initiator') {
+            await this.sendMediaOffer();
+          }
+        }
+
+        /**
+         * Create and configure media peer connection with local stream.
+         * @returns {RTCPeerConnection} Configured media peer connection
+         */
+        createMediaPeerConnection() {
+          const mediaPc = new RTCPeerConnection({
+            iceServers: CONFIG.ICE_SERVERS,
+            iceCandidatePoolSize: CONFIG.ICE_CANDIDATE_POOL_SIZE,
+          });
+
+          // Trickle ICE: Send candidates to peer via data channel
+          mediaPc.onicecandidate = (event) => {
+            if (event.candidate) {
+              console.log('🧊 ICE candidate generated (media PC):', event.candidate.type);
+              // Send candidate to remote peer via data channel
+              if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                this.dataChannel.send(JSON.stringify({
+                  type: 'ice-candidate',
+                  candidate: event.candidate.toJSON()
+                }));
+                console.log('📤 Sent ICE candidate to peer');
+              }
+            } else {
+              console.log('✅ ICE candidate gathering complete (media PC)');
+            }
+          };
+
+          // Add local stream tracks if available
+          if (this.localStream) {
+            this.localStream.getTracks().forEach((track) => {
+              mediaPc.addTrack(track, this.localStream);
+            });
+          }
+
+          // Set up remote stream handler
+          mediaPc.ontrack = (event) => {
+            this.showConnectedState(event.streams[0]);
+          };
+
+          return mediaPc;
+        }
+
+        async sendMediaOffer() {
+          this.mediaPc = this.createMediaPeerConnection();
+
+          const offer = await this.mediaPc.createOffer();
+          await this.mediaPc.setLocalDescription(offer);
+
+          // Trickle ICE: Send offer immediately without waiting for candidates
+          const mediaOffer = {
+            type: 'media-offer',
+            sdp: this.mediaPc.localDescription.sdp,
+          };
+
+          this.dataChannel.send(JSON.stringify(mediaOffer));
+          console.log('📤 Media offer sent with Trickle ICE');
+        }
+
+        async handleMediaOffer(data) {
+          this.mediaPc = this.createMediaPeerConnection();
+
+          await this.mediaPc.setRemoteDescription({
+            type: 'offer',
+            sdp: data.sdp,
+          });
+
+          const answer = await this.mediaPc.createAnswer();
+          await this.mediaPc.setLocalDescription(answer);
+
+          // Trickle ICE: Send answer immediately without waiting for candidates
+          const mediaAnswer = {
+            type: 'media-answer',
+            sdp: this.mediaPc.localDescription.sdp,
+          };
+
+          this.dataChannel.send(JSON.stringify(mediaAnswer));
+          console.log('📤 Media answer sent with Trickle ICE');
+        }
+
+        async handleMediaAnswer(data) {
+          await this.mediaPc.setRemoteDescription({
+            type: 'answer',
+            sdp: data.sdp,
+          });
+        }
+
+        showConnectedState(remoteStream) {
+          this.remoteVideo.srcObject = remoteStream;
+          this.remoteVideo.classList.remove('hidden');
+          this.connectionEstablished = true;
+
+          // Enable split view mode when connected
+          this.videoGrid.classList.add('mode-split-v');
+
+          // Enable click on local video after connection
+          this.localVideo.classList.remove('no-click');
+
+          // Clear loading state
+          this.setLoading(false);
+          this.isProcessing = false;
+
+          this.setButtonState('connected');
+          this.showToast('🎉 Connected!');
+          this.updateVideoLayout();
+        }
+
+        /**
+         * Wait for ICE candidates to be gathered and embedded in local description.
+         * Required for copy-paste/QR code signaling where SDP is the only exchange mechanism.
+         * @param {RTCPeerConnection} pc - Peer connection to wait for
+         * @returns {Promise<void>}
+         */
+        waitForICECandidates(pc) {
+          return new Promise((resolve) => {
+            if (pc.iceGatheringState === 'complete') {
+              console.log('✅ ICE gathering already complete');
+              resolve();
+              return;
+            }
+
+            let timeout;
+            const onStateChange = () => {
+              console.log('ICE gathering state:', pc.iceGatheringState);
+              if (pc.iceGatheringState === 'complete') {
+                pc.removeEventListener('icegatheringstatechange', onStateChange);
+                clearTimeout(timeout);
+                console.log('✅ ICE gathering complete');
+                resolve();
+              }
+            };
+
+            pc.addEventListener('icegatheringstatechange', onStateChange);
+
+            // Timeout fallback - proceed even if incomplete
+            timeout = setTimeout(() => {
+              pc.removeEventListener('icegatheringstatechange', onStateChange);
+              console.log('⏱️ ICE gathering timeout - proceeding with available candidates');
+              resolve();
+            }, CONFIG.ICE_GATHERING_TIMEOUT);
+          });
+        }
+
+        /**
+         * Share QR code for offer directly without showing modal.
+         * Creates connection if needed, generates QR, and shares image immediately.
+         * @returns {Promise<void>}
+         */
+        async shareQROfferDirect() {
+          try {
+            // If no connection yet, create it first (lazy initialization)
+            if (!this.pc && this.buttonState === 'ready') {
+              console.log('👤 User clicked Share QR Offer - creating connection...');
+              this.setLoading(true, 'Creating offer');
+              await this.startAsInitiator(false); // Don't auto-share URL
+            }
+
+            // Get offer URL
+            const offerUrl = this.topButton.dataset.offerUrl;
+            if (!offerUrl) {
+              this.showToast('❌ No offer available');
+              return;
+            }
+
+            // Check if QRCode library is loaded
+            if (typeof QRCode === 'undefined') {
+              this.handleError('❌ QR Code library not loaded', 'QRCode library unavailable');
+              return;
+            }
+
+            this.showToast('🔄 Generating QR code...');
+
+            // Generate QR code on canvas
+            const canvas = document.createElement('canvas');
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                offerUrl,
+                {
+                  errorCorrectionLevel: CONFIG.QR_ERROR_CORRECTION,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) reject(error);
+                  else resolve();
+                }
+              );
+            });
+
+            // Convert canvas to blob
+            const blob = await new Promise((resolve) => {
+              canvas.toBlob(resolve, 'image/png');
+            });
+
+            const file = new File([blob], 'webrtc-offer-qr.png', {
+              type: 'image/png',
+            });
+
+            console.log('📤 Attempting to share QR code image...');
+
+            // Try native share API with files
+            if (navigator.share) {
+              const canShareFiles =
+                navigator.canShare && navigator.canShare({ files: [file] });
+
+              if (canShareFiles) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Scan this QR code to connect',
+                });
+                this.showToast('✅ QR Code shared');
+                this.setButtonState('paste'); // Move to waiting for answer
+                return;
+              }
+            }
+
+            // Fallback to clipboard
+            console.log('Falling back to clipboard...');
+            if (navigator.clipboard && navigator.clipboard.write) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob }),
+              ]);
+              this.showToast('✅ QR Code copied to clipboard');
+              this.setButtonState('paste');
+            } else {
+              this.showToast('❌ Share not supported. Use "Show QR" button');
+            }
+          } catch (err) {
+            this.handleError('❌ Failed to share QR code', err);
+          }
+        }
+
+        /**
+         * Generate and display QR code for current offer or answer.
+         * Automatically detects whether to encode offer URL or answer code.
+         * @returns {Promise<void>}
+         */
+        async showQRCode() {
+          // Check if QRCode library is loaded
+          if (typeof QRCode === 'undefined') {
+            this.showToast('❌ QR Code library not loaded');
+            console.error(
+              'QRCode library is not available. Check if CDN is accessible.'
+            );
+            return;
+          }
+
+          let dataToEncode;
+          let qrType = 'unknown';
+
+          // Smart detection: check what data is available
+          // Priority: answer code > offer URL (in case both exist)
+          if (this.answerCode) {
+            // Responder has an answer code to share
+            dataToEncode = this.answerCode;
+            qrType = 'answer';
+          } else if (this.offerUrl) {
+            // Initiator has an offer URL to share
+            dataToEncode = this.offerUrl;
+            qrType = 'offer';
+          } else {
+            dataToEncode = '';
+          }
+
+          console.log(
+            `Generating QR code for ${qrType}:`,
+            dataToEncode.substring(0, 50) + '...'
+          );
+          console.log('Data length:', dataToEncode.length);
+          console.log('Data type check:', dataToEncode.startsWith('http') ? 'URL' : 'base64');
+
+          if (!dataToEncode) {
+            this.showToast('❌ No data to generate QR code');
+            return;
+          }
+
+          try {
+            // Clear previous QR
+            this.qrDisplay.innerHTML = '';
+
+            // Determine optimal error correction
+            const errorCorrection = this.getOptimalErrorCorrection(dataToEncode);
+            console.log(`Using error correction: ${errorCorrection} for ${dataToEncode.length} chars`);
+
+            // Generate QR code
+            const canvas = document.createElement('canvas');
+
+            // Call QRCode.toCanvas with proper syntax
+            await new Promise((resolve, reject) => {
+              QRCode.toCanvas(
+                canvas,
+                dataToEncode,
+                {
+                  errorCorrectionLevel: errorCorrection,
+                  width: CONFIG.QR_SIZE,
+                  margin: CONFIG.QR_MARGIN,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF',
+                  },
+                },
+                (error) => {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    resolve();
+                  }
+                }
+              );
+            });
+
+            this.qrDisplay.appendChild(canvas);
+            this.currentQRData = canvas;
+            this.qrModal.classList.remove('hidden');
+            this.showToast('✅ QR Code generated');
+            console.log('QR code generated successfully');
+          } catch (err) {
+            this.handleError('❌ Failed to generate QR code', err);
+          }
+        }
+
+        async shareQRCode() {
+          try {
+            // Get canvas from modal display
+            const canvas = this.qrDisplay.querySelector('canvas');
+            if (!canvas) {
+              this.showToast('❌ No QR code to share');
+              return;
+            }
+
+            // Convert canvas to blob
+            const blob = await new Promise((resolve) => {
+              canvas.toBlob(resolve, 'image/png');
+            });
+
+            const file = new File([blob], 'webrtc-connection.png', {
+              type: 'image/png',
+            });
+
+            console.log('Attempting to share QR code...');
+            console.log('Navigator.share available:', !!navigator.share);
+
+            // Try native share API with files
+            if (navigator.share) {
+              const canShareFiles =
+                navigator.canShare && navigator.canShare({ files: [file] });
+              console.log('Can share files:', canShareFiles);
+
+              if (canShareFiles) {
+                await navigator.share({
+                  files: [file],
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Scan this QR code to connect via WebRTC',
+                });
+                this.showToast('✅ QR Code shared');
+                return;
+              } else {
+                // Try sharing without files (just trigger share sheet)
+                console.log('Trying share without files...');
+                await navigator.share({
+                  title: 'WebRTC Connection QR Code',
+                  text: 'Please download the QR code from the browser',
+                });
+                this.showToast('📋 Please download QR code manually');
+                return;
+              }
+            }
+
+            // Fallback to clipboard
+            console.log('Falling back to clipboard...');
+            if (navigator.clipboard && navigator.clipboard.write) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob }),
+              ]);
+              this.showToast('✅ QR Code copied to clipboard');
+            } else {
+              this.showToast('❌ Please use Download button');
+            }
+          } catch (err) {
+            this.handleError('❌ Share failed. Use Download button', err);
+          }
+        }
+
+        async downloadQRCode() {
+          try {
+            // Get canvas from modal display
+            const canvas = this.qrDisplay.querySelector('canvas');
+            if (!canvas) {
+              this.showToast('❌ No QR code to download');
+              return;
+            }
+
+            const url = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'webrtc-connection.png';
+            link.href = url;
+            link.click();
+            this.showToast('✅ QR Code downloaded');
+          } catch (err) {
+            this.handleError('❌ Failed to download QR code', err);
+          }
+        }
+
+        // QR Code Decoding
+        showQRPasteModal(context = 'offer') {
+          this.qrPasteContext = context;
+          const titleEl = document.getElementById('qr-paste-modal-title');
+          if (context === 'offer') {
+            titleEl.textContent = 'Paste or Upload Offer QR Code';
+          } else {
+            titleEl.textContent = 'Paste or Upload Answer QR Code';
+          }
+          this.qrPasteModal.classList.remove('hidden');
+        }
+
+        async handleQRPaste(event) {
+          const items = event.clipboardData?.items;
+          if (!items) return;
+
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              const blob = item.getAsFile();
+              await this.decodeQRFromBlob(blob);
+              break;
+            }
+          }
+        }
+
+        async handleQRFileUpload(event) {
+          const file = event.target.files?.[0];
+          if (!file) return;
+
+          await this.decodeQRFromBlob(file);
+          this.qrFileInput.value = ''; // Reset input
+        }
+
+        /**
+         * Decode QR code from image blob and process offer or answer.
+         * Uses context (offer/answer) to validate and route the decoded data.
+         * @param {Blob} blob - Image blob containing QR code
+         * @returns {Promise<void>}
+         */
+        async decodeQRFromBlob(blob) {
+          if (this.isProcessing) {
+            console.log('Already processing QR code, ignoring');
+            return;
+          }
+
+          this.isProcessing = true;
+
+          try {
+            this.showToast('🔍 Decoding QR code...');
+
+            const imageDataURL = await this.blobToDataURL(blob);
+            const decoded = await this.decodeQRFromImage(imageDataURL);
+
+            if (decoded) {
+              this.qrPasteModal.classList.add('hidden');
+
+              // Process based on expected context
+              if (this.qrPasteContext === 'offer') {
+                // Expecting an offer QR code (URL with hash)
+                console.log('📥 Processing offer QR code');
+
+                if (decoded.startsWith('http')) {
+                  try {
+                    const url = new URL(decoded);
+                    if (url.hash) {
+                      const offerData = url.hash.slice(1);
+                      console.log(
+                        '✅ Valid offer URL, hash length:',
+                        offerData.length
+                      );
+
+                      // Close existing peer connection if we were starting as initiator
+                      if (this.pc && this.role === 'initiator') {
+                        console.log(
+                          '⚠️ Closing initiator connection to become responder'
+                        );
+                        this.pc.close();
+                        this.pc = null;
+                        this.dataChannel = null;
+                      }
+
+                      // Set the hash using replaceState to avoid polluting browser history
+                      history.replaceState(null, '', `#${offerData}`);
+
+                      // Directly process the offer
+                      await this.handleOfferFromHash(offerData);
+                      this.showToast('✅ Offer received');
+                      return;
+                    }
+                  } catch (e) {
+                    console.error('Invalid offer URL:', e);
+                    this.showToast('❌ Invalid offer QR code');
+                    this.isProcessing = false;
+                    return;
+                  }
+                } else {
+                  // Try to decode it as base64 offer data directly
+                  try {
+                    const data = JSON.parse(atob(decoded));
+                    if (data.type === 'offer') {
+                      console.log('✅ Valid base64 offer data');
+                      await this.handleOfferFromHash(decoded);
+                      this.showToast('✅ Offer received');
+                      return;
+                    }
+                  } catch (e) {
+                    console.error('Not a valid offer:', e);
+                  }
+                  this.showToast("❌ This doesn't look like an offer QR code");
+                  this.isProcessing = false;
+                  return;
+                }
+              } else if (this.qrPasteContext === 'answer') {
+                // Expecting an answer QR code (base64 encoded answer)
+                console.log(
+                  '📥 Processing answer QR code, length:',
+                  decoded.length
+                );
+
+                // Answer should be base64, not a URL
+                if (decoded.startsWith('http')) {
+                  this.showToast('❌ This looks like an offer, not an answer');
+                  this.isProcessing = false;
+                  return;
+                }
+
+                try {
+                  const data = JSON.parse(atob(decoded));
+                  if (data.type === 'answer') {
+                    console.log('✅ Valid answer data');
+                    this.answerInput.value = decoded;
+                    this.isProcessing = false; // Clear before calling processAnswer
+                    await this.processAnswer();
+                    this.showToast('✅ Answer received');
+                    return;
+                  } else {
+                    this.showToast(
+                      "❌ This doesn't look like an answer QR code"
+                    );
+                    this.isProcessing = false;
+                    return;
+                  }
+                } catch (e) {
+                  console.error('Invalid answer data:', e);
+                  this.showToast('❌ Invalid answer QR code');
+                  this.isProcessing = false;
+                  return;
+                }
+              }
+
+              this.showToast('✅ QR code decoded');
+              this.isProcessing = false;
+            } else {
+              this.showToast('❌ No QR code found in image');
+              this.isProcessing = false;
+            }
+          } catch (err) {
+            this.handleError('❌ Failed to decode QR code', err);
+          }
+        }
+
+        async decodeQRFromImage(imageDataURL) {
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = async () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+              canvas.width = img.width;
+              canvas.height = img.height;
+
+              // Fill with white background first (in case of transparency)
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+              // Draw image on top
+              ctx.drawImage(img, 0, 0);
+
+              // Debug: Log canvas as data URL (uncomment for debugging)
+              // console.log('Canvas for decoding:', canvas.toDataURL('image/png').substring(0, 100));
+
+              // Try ZXing first (more powerful for dense QR codes)
+              if (typeof ZXing !== 'undefined') {
+                try {
+                  console.log('Trying ZXing decoder...');
+                  console.log('Image dimensions:', img.width, 'x', img.height);
+                  const codeReader = new ZXing.BrowserQRCodeReader();
+
+                  // Try decoding from image element
+                  const result = await codeReader.decodeFromImageElement(img);
+
+                  if (result && result.text) {
+                    console.log('✅ QR code decoded successfully with ZXing!');
+                    console.log('Data length:', result.text.length);
+                    console.log(
+                      'First 100 chars:',
+                      result.text.substring(0, 100)
+                    );
+                    resolve(result.text);
+                    return;
+                  }
+                } catch (err) {
+                  console.log('ZXing failed:', err?.message || err || 'unknown error');
+                  // ZXing often fails, jsQR is the fallback - no need to log full error
+                }
+              }
+
+              // Fallback to jsQR with multiple scales
+              if (typeof jsQR !== 'undefined') {
+                console.log('Trying jsQR decoder...');
+                console.log('Original image size:', img.width, 'x', img.height);
+
+                // Try different target sizes based on original image
+                const targetSizes = [
+                  img.width, // Original size
+                  800,       // Standard QR size
+                  1200,      // Large QR
+                  600,       // Small QR
+                  400,       // Very small
+                ];
+
+                for (const targetSize of targetSizes) {
+                  const scale = targetSize / Math.max(img.width, img.height);
+                  canvas.width = Math.floor(img.width * scale);
+                  canvas.height = Math.floor(img.height * scale);
+
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  ctx.imageSmoothingEnabled = true;
+                  ctx.imageSmoothingQuality = 'high';
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                  const imageData = ctx.getImageData(
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                  );
+
+                  console.log(
+                    `Trying jsQR at size ${canvas.width}x${canvas.height}`
+                  );
+
+                  const code = jsQR(
+                    imageData.data,
+                    imageData.width,
+                    imageData.height,
+                    {
+                      inversionAttempts: 'attemptBoth',
+                    }
+                  );
+
+                  if (code) {
+                    console.log(
+                      '✅ QR code decoded successfully with jsQR'
+                    );
+                    console.log('Decoded at size:', canvas.width, 'x', canvas.height);
+                    console.log('Data length:', code.data.length);
+                    console.log(
+                      'First 100 chars:',
+                      code.data.substring(0, 100)
+                    );
+                    resolve(code.data);
+                    return;
+                  }
+                }
+              }
+
+              console.log('❌ No QR code found with any decoder');
+              resolve(null);
+            };
+            img.onerror = (err) => {
+              console.error('Image load error:', err);
+              resolve(null);
+            };
+            img.src = imageDataURL;
+          });
+        }
+
+        blobToDataURL(blob) {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+
+      const rtc = new P2PWebRTC();
+      window.addEventListener('load', () => rtc.init());
+    </script>
+  </body>
+</html>

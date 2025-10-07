@@ -1,0 +1,20 @@
+{
+  "name": "copy-paste-webrtc",
+  "version": "2.0.0",
+  "description": "P2P WebRTC Video Chat with Manual Signaling (Refactored)",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "serve": "npx http-server -p 8000"
+  },
+  "keywords": [
+    "webrtc",
+    "p2p",
+    "video-chat",
+    "qr-code",
+    "manual-signaling"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}
