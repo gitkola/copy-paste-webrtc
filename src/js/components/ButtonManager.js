@@ -40,8 +40,7 @@ export default class ButtonManager {
     });
 
     this.buttons.pasteOffer.addEventListener('click', async () => {
-      this.ui.handlePasteOfferClick();
-      // Modal will be opened by ModalManager
+      await this.handlePasteOfferWithClipboard();
     });
 
     // Initiator share buttons
@@ -59,10 +58,9 @@ export default class ButtonManager {
       });
     });
 
-    // Initiator paste answer button
-    this.buttons.pasteAnswer.addEventListener('click', () => {
-      this.ui.handlePasteAnswerClick();
-      // Modal will be opened by ModalManager
+    // Initiator paste answer button - Direct clipboard paste
+    this.buttons.pasteAnswer.addEventListener('click', async () => {
+      await this.handlePasteAnswerWithClipboard();
     });
 
     // Responder share buttons
@@ -79,6 +77,104 @@ export default class ButtonManager {
         this.toast.show(message);
       });
     });
+  }
+
+  /**
+   * Handle paste offer with direct clipboard reading
+   */
+  async handlePasteOfferWithClipboard() {
+    try {
+      // Try to read from clipboard
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        // Clipboard API not available, fall back to modal
+        logger.warn('Clipboard API not available, using modal');
+        this.ui.handlePasteOfferClick();
+        return;
+      }
+
+      this.toast.show('📋 Reading from clipboard...');
+
+      const clipboardText = await navigator.clipboard.readText();
+
+      if (!clipboardText || clipboardText.trim().length === 0) {
+        // Clipboard empty, open modal for QR paste
+        logger.info('Clipboard empty, opening QR paste modal');
+        this.toast.show('📝 Clipboard empty, paste URL or QR');
+        this.ui.handlePasteOfferClick();
+        return;
+      }
+
+      // Check if it looks like an offer URL/code
+      const text = clipboardText.trim();
+      if (!text.includes('://') && text.length < 100) {
+        // Doesn't look like valid offer, might be wrong data
+        logger.info('Clipboard content does not look like offer, opening modal');
+        this.toast.show('📝 Please paste offer URL or upload QR');
+        this.ui.handlePasteOfferClick();
+        return;
+      }
+
+      // Process offer directly
+      this.toast.show('⏳ Processing offer...');
+      await this.ui.handleOfferSubmit(text);
+
+    } catch (error) {
+      // Handle permission denied or other errors
+      if (error.name === 'NotAllowedError') {
+        logger.warn('Clipboard permission denied, using modal');
+        this.toast.show('📝 Clipboard access denied, paste manually');
+      } else {
+        logger.error('Paste offer failed:', error);
+        this.toast.show(error.message);
+      }
+
+      // Fall back to modal
+      this.ui.handlePasteOfferClick();
+    }
+  }
+
+  /**
+   * Handle paste answer with direct clipboard reading
+   */
+  async handlePasteAnswerWithClipboard() {
+    try {
+      // Try to read from clipboard
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        // Clipboard API not available, fall back to modal
+        logger.warn('Clipboard API not available, using modal');
+        this.ui.handlePasteAnswerClick();
+        return;
+      }
+
+      this.toast.show('📋 Reading from clipboard...');
+
+      const clipboardText = await navigator.clipboard.readText();
+
+      if (!clipboardText || clipboardText.trim().length === 0) {
+        // Clipboard empty, open modal for manual paste
+        logger.info('Clipboard empty, opening modal');
+        this.toast.show('📝 Clipboard empty, paste manually');
+        this.ui.handlePasteAnswerClick();
+        return;
+      }
+
+      // Process answer directly
+      this.toast.show('⏳ Processing answer...');
+      await this.ui.handleAnswerSubmit(clipboardText.trim());
+
+    } catch (error) {
+      // Handle permission denied or other errors
+      if (error.name === 'NotAllowedError') {
+        logger.warn('Clipboard permission denied, using modal');
+        this.toast.show('📝 Clipboard access denied, paste manually');
+      } else {
+        logger.error('Paste answer failed:', error);
+        this.toast.show(error.message);
+      }
+
+      // Fall back to modal
+      this.ui.handlePasteAnswerClick();
+    }
   }
 
   /**

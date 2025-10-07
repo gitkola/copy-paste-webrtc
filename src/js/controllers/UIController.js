@@ -101,6 +101,38 @@ export default class UIController {
   }
 
   /**
+   * Handle offer URL/text submission
+   */
+  async handleOfferSubmit(offerText) {
+    try {
+      // Parse and validate offer
+      const signaling = this.connection.signaling;
+      const offerData = signaling.parseOffer(offerText);
+
+      // Extract hash from URL or use text directly
+      let hashData;
+      if (offerText.includes('://')) {
+        // It's a full URL, extract hash
+        const url = new URL(offerText);
+        hashData = url.hash.slice(1);
+      } else if (offerText.startsWith('#')) {
+        // It's a hash with #
+        hashData = offerText.slice(1);
+      } else {
+        // It's just the base64 data
+        hashData = offerText;
+      }
+
+      // Set hash and process
+      signaling.setHashFromOffer(hashData);
+      await this.connection.handleOfferFromHash();
+    } catch (error) {
+      logger.error('Process offer failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Handle "Share Answer Code" button click
    */
   async handleShareAnswerCodeClick() {
