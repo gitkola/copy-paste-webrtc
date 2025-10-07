@@ -80,7 +80,13 @@ export default class Store {
     this.status = 'action';
 
     try {
-      return await this.actions[actionKey](this, payload);
+      // Create context object like Vuex
+      const context = {
+        commit: this.commit.bind(this),
+        dispatch: this.dispatch.bind(this),
+        state: this.state,
+      };
+      return await this.actions[actionKey](context, payload);
     } finally {
       this.status = 'resting';
     }
