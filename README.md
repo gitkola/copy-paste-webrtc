@@ -1,5 +1,9 @@
 # P2P WebRTC Video Chat (Refactored)
 
+## Live Demo
+
+[https://gitkola.github.io/copy-paste-webrtc/](https://gitkola.github.io/copy-paste-webrtc/)
+
 A peer-to-peer WebRTC video chat application with **manual signaling** (no server required) - now with **modular, scalable architecture**.
 
 ## 🎯 Features
