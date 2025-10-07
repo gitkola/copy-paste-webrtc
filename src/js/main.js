@@ -38,6 +38,9 @@ class App {
     this.videoGrid = new VideoGrid(this.mediaController);
     this.secondaryButtons = new SecondaryButtons(this.modalManager);
 
+    // Wire modal manager to UI controller (for opening modals)
+    this.uiController.setModalManager(this.modalManager);
+
     // Subscribe media controller to state changes
     this.mediaController.subscribeToStateChanges();
 

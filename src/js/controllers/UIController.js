@@ -13,6 +13,14 @@ export default class UIController {
   constructor(connectionController) {
     this.connection = connectionController;
     this.mediaService = connectionController.getMediaService();
+    this.modalManager = null; // Set later via setModalManager()
+  }
+
+  /**
+   * Set modal manager (called after initialization)
+   */
+  setModalManager(modalManager) {
+    this.modalManager = modalManager;
   }
 
   /**
@@ -40,7 +48,9 @@ export default class UIController {
   async handlePasteOfferClick() {
     // Set context for QR paste modal
     store.commit('setQRPasteContext', 'offer');
-    // Modal will be opened by component
+    if (this.modalManager) {
+      this.modalManager.openQRPasteModal();
+    }
   }
 
   /**
@@ -73,7 +83,9 @@ export default class UIController {
    * Handle "Paste Answer" button click
    */
   async handlePasteAnswerClick() {
-    // Modal will be opened by component
+    if (this.modalManager) {
+      this.modalManager.openPasteAnswerModal();
+    }
   }
 
   /**
