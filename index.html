@@ -35,7 +35,6 @@
     <title>P2P WebRTC</title>
 
     <!-- External Libraries -->
-    <script type="text/javascript" src="./lib/qrcode.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
 
@@ -61,52 +60,48 @@
       <div id="main-button-container">
         <!-- Initial state: Share Offer button -->
         <button id="share-offer-btn" class="control-btn primary hidden">
+          <span>Init</span>
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
+            width="24"
+            height="24"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            class="lucide lucide-phone-outgoing-icon lucide-phone-outgoing"
           >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            <path d="m16 8 6-6" />
+            <path d="M22 8V2h-6" />
+            <path
+              d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"
+            />
           </svg>
-          <span>Share Offer</span>
         </button>
 
         <!-- Initial state: Paste Offer button -->
-        <button
-          id="paste-offer-btn"
-          class="control-btn hidden"
-          style="
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
-            color: #000;
-          "
-        >
+        <button id="paste-offer-btn" class="control-btn hidden">
+          <span>Accept</span>
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
+            width="24"
+            height="24"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            class="lucide lucide-phone-incoming-icon lucide-phone-incoming"
           >
+            <path d="M16 2v6h6" />
+            <path d="m22 2-6 6" />
             <path
-              d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+              d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"
             />
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
           </svg>
-          <span>Paste Offer</span>
         </button>
 
         <!-- Initiator: Share Offer Link button -->
@@ -128,28 +123,37 @@
             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
-          <span>Share Offer Link</span>
+          <span>Share Link</span>
         </button>
 
         <!-- Initiator: Share Offer QR button -->
         <button id="share-offer-qr-btn" class="control-btn primary hidden">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
+            width="24"
+            height="24"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
+            class="lucide lucide-qr-code-icon lucide-qr-code"
           >
-            <rect x="3" y="3" width="7" height="7" />
-            <rect x="14" y="3" width="7" height="7" />
-            <rect x="14" y="14" width="7" height="7" />
-            <rect x="3" y="14" width="7" height="7" />
+            <rect width="5" height="5" x="3" y="3" rx="1" />
+            <rect width="5" height="5" x="16" y="3" rx="1" />
+            <rect width="5" height="5" x="3" y="16" rx="1" />
+            <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
+            <path d="M21 21v.01" />
+            <path d="M12 7v3a2 2 0 0 1-2 2H7" />
+            <path d="M3 12h.01" />
+            <path d="M12 3h.01" />
+            <path d="M12 16v.01" />
+            <path d="M16 12h1" />
+            <path d="M21 12v.01" />
+            <path d="M12 21v-1" />
           </svg>
-          <span>Share Offer QR</span>
+          <span>Share QR</span>
         </button>
 
         <!-- Initiator: Paste Answer button (waiting state) -->
@@ -173,14 +177,7 @@
         </button>
 
         <!-- Responder: Share Answer Code button -->
-        <button
-          id="share-answer-code-btn"
-          class="control-btn hidden"
-          style="
-            background: linear-gradient(135deg, #00ff88, #00cc66);
-            color: #000;
-          "
-        >
+        <button id="share-answer-code-btn" class="control-btn hidden">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="20"
@@ -202,14 +199,7 @@
         </button>
 
         <!-- Responder: Share Answer QR button -->
-        <button
-          id="share-answer-qr-btn"
-          class="control-btn hidden"
-          style="
-            background: linear-gradient(135deg, #00ff88, #00cc66);
-            color: #000;
-          "
-        >
+        <button id="share-answer-qr-btn" class="control-btn hidden">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="20"

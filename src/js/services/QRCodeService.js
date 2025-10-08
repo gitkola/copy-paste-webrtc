@@ -7,7 +7,12 @@
  */
 
 import { CONFIG } from '../config/webrtc.js';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, QR_CONTEXTS } from '../config/constants.js';
+import {
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+  QR_CONTEXTS,
+} from '../config/constants.js';
+import { QRCode } from '../lib/qrcode.js';
 import { blobToDataURL, getOptimalQRErrorCorrection } from '../lib/helpers.js';
 import logger from '../lib/Logger.js';
 
@@ -27,7 +32,9 @@ export default class QRCodeService {
     }
 
     const errorCorrection = getOptimalQRErrorCorrection(data);
-    logger.info(`Generating QR code (${data.length} chars, EC: ${errorCorrection})`);
+    logger.info(
+      `Generating QR code (${data.length} chars, EC: ${errorCorrection})`
+    );
 
     const canvas = document.createElement('canvas');
 
@@ -178,7 +185,9 @@ export default class QRCodeService {
             const result = await codeReader.decodeFromImageElement(img);
 
             if (result && result.text) {
-              logger.info('✅ QR decoded with ZXing', { length: result.text.length });
+              logger.info('✅ QR decoded with ZXing', {
+                length: result.text.length,
+              });
               resolve(result.text);
               return;
             }
@@ -192,11 +201,11 @@ export default class QRCodeService {
           logger.debug('Trying jsQR decoder...');
 
           const targetSizes = [
-            img.width,  // Original size
-            800,        // Standard QR size
-            1200,       // Large QR
-            600,        // Small QR
-            400,        // Very small
+            img.width, // Original size
+            800, // Standard QR size
+            1200, // Large QR
+            600, // Small QR
+            400, // Very small
           ];
 
           for (const targetSize of targetSizes) {
@@ -209,11 +218,21 @@ export default class QRCodeService {
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
 
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'attemptBoth',
-            });
+            const code = jsQR(
+              imageData.data,
+              imageData.width,
+              imageData.height,
+              {
+                inversionAttempts: 'attemptBoth',
+              }
+            );
 
             if (code) {
               logger.info('✅ QR decoded with jsQR', {

@@ -10,13 +10,14 @@
   transform: translate(-50%, -50%);
   width: 90%;
   max-width: 400px;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(20px);
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 24px;
   z-index: 20;
   pointer-events: auto;
+  transition: all 0.9s ease;
 }
 
 #paste-modal.hidden {
