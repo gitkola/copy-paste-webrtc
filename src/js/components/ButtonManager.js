@@ -108,7 +108,9 @@ export default class ButtonManager {
       const text = clipboardText.trim();
       if (!text.includes('://') && text.length < 100) {
         // Doesn't look like valid offer, might be wrong data
-        logger.info('Clipboard content does not look like offer, opening modal');
+        logger.info(
+          'Clipboard content does not look like offer, opening modal'
+        );
         this.toast.show('📝 Please paste offer URL or upload QR');
         this.ui.handlePasteOfferClick();
         return;
@@ -117,7 +119,6 @@ export default class ButtonManager {
       // Process offer directly
       this.toast.show('⏳ Processing offer...');
       await this.ui.handleOfferSubmit(text);
-
     } catch (error) {
       // Handle permission denied or other errors
       if (error.name === 'NotAllowedError') {
@@ -161,7 +162,6 @@ export default class ButtonManager {
       // Process answer directly
       this.toast.show('⏳ Processing answer...');
       await this.ui.handleAnswerSubmit(clipboardText.trim());
-
     } catch (error) {
       // Handle permission denied or other errors
       if (error.name === 'NotAllowedError') {
